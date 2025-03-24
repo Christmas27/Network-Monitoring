@@ -1,9 +1,9 @@
-# Updated monitor.py (with debug steps)
+# Updated monitor.py
 import requests
 import sqlite3
 from dotenv import load_dotenv
 import os
-import json  # Add this
+import json
 
 load_dotenv()
 DNAC_HOST = os.getenv("DNAC_HOST")
@@ -18,15 +18,13 @@ auth_url = f"{DNAC_HOST}/dna/system/api/v1/auth/token"
 auth_response = requests.post(auth_url, auth=(DNAC_USER, DNAC_PASS), verify=False)
 token = auth_response.json()["Token"]
 
-# 2. Fetch Devices
-devices_url = f"{DNAC_HOST}/dna/intent/api/v1/network-health"
+# 2. Fetch DEVICE health (correct endpoint)
+devices_url = f"{DNAC_HOST}/dna/intent/api/v1/device-health"  # Changed from network-health
 headers = {"X-Auth-Token": token}
 response = requests.get(devices_url, headers=headers, verify=False)
 
 # Debug: Print raw response
-print(json.dumps(response.json(), indent=2))  # Inspect this output!
-
-devices = response.json()["response"]
+print(json.dumps(response.json(), indent=2))
 
 # 3. Store in SQLite
 conn = sqlite3.connect("network.db")
@@ -34,18 +32,23 @@ cursor = conn.cursor()
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS devices (
         name TEXT,
-        cpu TEXT,  # Changed to TEXT if values are "45%"
+        cpu TEXT,
         memory TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-""")
+""")  # Using proper SQL comments
 
-# Use this to handle potential field name changes
+# Process devices
+devices = response.json()["response"]
 for device in devices:
-    name = device.get("name") or device.get("hostname") or "N/A"  # Covers both old/new keys
-    cpu = device.get("cpu") or device.get("cpuUtilization") or "N/A"
-    memory = device.get("memory") or device.get("memoryUtilization") or "N/A"
-    print(f"Device: {name}, CPU: {cpu}, Memory: {memory}")
+    name = device.get("name", "N/A")
+    cpu = str(device.get("cpuUtilization", "N/A"))
+    memory = str(device.get("memoryUtilization", "N/A"))
+    print(f"Device: {name}, CPU: {cpu}%, Memory: {memory}%")
+    cursor.execute(
+        "INSERT INTO devices (name, cpu, memory) VALUES (?, ?, ?)",
+        (name, cpu, memory)
+    )
 
 conn.commit()
 conn.close()

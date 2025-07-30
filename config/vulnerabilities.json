@@ -1,0 +1,76 @@
+{
+  "services": {
+    "telnet": {
+      "port": 23,
+      "severity": "high",
+      "description": "Telnet service detected - unencrypted protocol",
+      "recommendation": "Disable Telnet and use SSH instead",
+      "cvss_score": 7.5
+    },
+    "ftp": {
+      "port": 21,
+      "severity": "medium",
+      "description": "FTP service detected - may transmit credentials in cleartext",
+      "recommendation": "Use SFTP or FTPS instead of plain FTP",
+      "cvss_score": 5.3
+    },
+    "snmp_v1_v2": {
+      "port": 161,
+      "severity": "medium",
+      "description": "SNMP v1/v2c detected - weak community strings",
+      "recommendation": "Upgrade to SNMPv3 with authentication and encryption",
+      "cvss_score": 5.8
+    },
+    "http": {
+      "port": 80,
+      "severity": "low",
+      "description": "HTTP service detected - unencrypted web traffic",
+      "recommendation": "Use HTTPS instead of HTTP",
+      "cvss_score": 3.1
+    }
+  },
+  "default_credentials": [
+    {
+      "username": "admin",
+      "password": "admin"
+    },
+    {
+      "username": "admin",
+      "password": "password"
+    },
+    {
+      "username": "admin",
+      "password": ""
+    },
+    {
+      "username": "cisco",
+      "password": "cisco"
+    },
+    {
+      "username": "root",
+      "password": "root"
+    }
+  ],
+  "weak_configurations": {
+    "cisco": [
+      {
+        "pattern": "enable password",
+        "severity": "high",
+        "description": "Enable password in plaintext",
+        "recommendation": "Use 'enable secret' instead of 'enable password'"
+      },
+      {
+        "pattern": "no service password-encryption",
+        "severity": "medium",
+        "description": "Password encryption disabled",
+        "recommendation": "Enable service password-encryption"
+      },
+      {
+        "pattern": "ip http server",
+        "severity": "medium",
+        "description": "HTTP server enabled",
+        "recommendation": "Disable HTTP server or use HTTPS"
+      }
+    ]
+  }
+}

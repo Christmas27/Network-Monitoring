@@ -1,0 +1,102 @@
+{
+  "application": {
+    "name": "Network Automation Dashboard",
+    "version": "1.0.0",
+    "debug": true,
+    "secret_key": "change-this-in-production",
+    "host": "0.0.0.0",
+    "port": 5000
+  },
+  "database": {
+    "type": "sqlite",
+    "file": "data/network_dashboard.db",
+    "backup_retention_days": 30
+  },
+  "monitoring": {
+    "ping_interval": 30,
+    "snmp_timeout": 10,
+    "ssh_timeout": 15,
+    "max_concurrent_connections": 10,
+    "alert_thresholds": {
+      "cpu_usage": 80,
+      "memory_usage": 85,
+      "interface_errors": 100,
+      "response_time": 5000
+    }
+  },
+  "security": {
+    "scan_interval": 3600,
+    "compliance_checks": [
+      "weak_passwords",
+      "open_ports",
+      "outdated_firmware",
+      "insecure_protocols",
+      "default_credentials"
+    ],
+    "vulnerability_database": "config/vulnerabilities.json"
+  },
+  "device_defaults": {
+    "cisco": {
+      "port": 22,
+      "device_type": "cisco_ios",
+      "timeout": 15,
+      "banner_timeout": 15,
+      "conn_timeout": 10
+    },
+    "juniper": {
+      "port": 22,
+      "device_type": "juniper_junos",
+      "timeout": 15
+    },
+    "arista": {
+      "port": 22,
+      "device_type": "arista_eos",
+      "timeout": 15
+    }
+  },
+  "api": {
+    "rate_limit": "100/hour",
+    "authentication": false,
+    "cors_origins": ["*"]
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/network_dashboard.log",
+    "max_size": "10MB",
+    "backup_count": 5,
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention_days": 90,
+    "compression": true,
+    "location": "backups/"
+  },
+  "integrations": {
+    "cisco_dna_center": {
+      "enabled": false,
+      "base_url": "",
+      "username": "",
+      "password": ""
+    },
+    "cisco_meraki": {
+      "enabled": false,
+      "api_key": "",
+      "org_id": ""
+    },
+    "snmp": {
+      "enabled": true,
+      "community": "public",
+      "version": "2c"
+    }
+  },
+  "templates": {
+    "config_templates_dir": "config/templates/",
+    "default_templates": [
+      "basic_router.j2",
+      "basic_switch.j2",
+      "security_baseline.j2"
+    ]
+  }
+}

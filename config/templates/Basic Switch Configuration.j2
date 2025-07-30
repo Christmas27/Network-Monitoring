@@ -1,0 +1,34 @@
+
+! Basic Switch Configuration
+hostname {{ hostname }}
+!
+enable secret {{ enable_secret }}
+!
+vlan {{ management_vlan }}
+ name Management
+!
+interface vlan{{ management_vlan }}
+ ip address {{ management_ip }} {{ management_mask }}
+ no shutdown
+!
+ip default-gateway {{ default_gateway }}
+!
+{% for port in access_ports %}
+interface {{ port.interface }}
+ switchport mode access
+ switchport access vlan {{ port.vlan }}
+ spanning-tree portfast
+!
+{% endfor %}
+!
+line vty 0 15
+ transport input ssh
+ login local
+!
+ip ssh version 2
+!
+banner motd ^
+{{ banner_message }}
+^
+!
+end

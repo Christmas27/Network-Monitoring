@@ -21,6 +21,8 @@ from modules.network_monitor import NetworkMonitor
 from modules.config_manager import ConfigManager
 from modules.security_scanner import SecurityScanner
 from config.config import Config
+from modules.devnet_integration import DevNetSandboxManager
+from modules.live_monitoring import LiveNetworkMonitor
 
 # Configure logging
 logging.basicConfig(
@@ -44,10 +46,28 @@ network_monitor = NetworkMonitor()
 config_manager = ConfigManager()
 security_scanner = SecurityScanner()
 
-# Global variables for real-time data
+# Add these variables after app creation but before route definitions
+print("🚀 Initializing Network Dashboard...")
+devnet_manager = DevNetSandboxManager()
+live_monitor = LiveNetworkMonitor()
+
+# Initialize tracking variables
 device_status = {}
-network_metrics = {}
 alerts = []
+
+# Test DevNet availability on startup
+print("🔍 Checking DevNet sandbox availability...")
+devnet_test = devnet_manager.test_all_devices()
+
+if devnet_test['working_devices']:
+    print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices online")
+    dashboard_mode = "live"
+else:
+    print("📡 DevNet unavailable - Using simulation mode")
+    dashboard_mode = "simulation"
+
+# Start monitoring
+live_monitor.start_monitoring()
 
 @app.route('/')
 def dashboard():
@@ -83,13 +103,50 @@ def devices():
 
 @app.route('/api/devices', methods=['GET'])
 def api_get_devices():
-    """API endpoint to get all devices"""
+    """Get devices with live/simulation data - UPDATED VERSION"""
     try:
-        devices = device_manager.get_all_devices()
-        return jsonify({'status': 'success', 'devices': devices})
+        if dashboard_mode == "live":
+            devices = devnet_manager.get_available_devices()
+        else:
+            # Return simulated devices
+            devices = [
+                {
+                    'name': 'sim_ios_xe_router',
+                    'host': 'demo-router.simulation.local',
+                    'type': 'cisco_xe',
+                    'status': 'online',
+                    'description': 'Cisco IOS XE Router (Simulated)',
+                    'response_time': '25ms',
+                    'last_check': 'Just now'
+                },
+                {
+                    'name': 'sim_catalyst_switch',
+                    'host': 'demo-switch.simulation.local', 
+                    'type': 'cisco_ios',
+                    'status': 'online',
+                    'description': 'Cisco Catalyst Switch (Simulated)',
+                    'response_time': '15ms',
+                    'last_check': 'Just now'
+                },
+                {
+                    'name': 'sim_asa_firewall',
+                    'host': 'demo-firewall.simulation.local',
+                    'type': 'cisco_asa',
+                    'status': 'online', 
+                    'description': 'Cisco ASA Firewall (Simulated)',
+                    'response_time': '30ms',
+                    'last_check': 'Just now'
+                }
+            ]
+        
+        return jsonify({
+            'devices': devices,
+            'mode': dashboard_mode,
+            'total': len(devices),
+            'timestamp': datetime.now().isoformat()
+        })
     except Exception as e:
-        logger.error(f"API error getting devices: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'error': str(e), 'mode': 'error'})
 
 @app.route('/api/devices', methods=['POST'])
 def api_add_device():
@@ -212,17 +269,6 @@ def favicon():
     except Exception:
         # Return empty response if favicon not found
         return '', 204
-
-# Additional API endpoints
-@app.route('/api/devices', methods=['GET'])
-def get_devices():
-    """Get all devices"""
-    try:
-        devices = device_manager.get_all_devices()
-        return jsonify(devices)
-    except Exception as e:
-        logger.error(f"Error getting devices: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/devices/<device_id>/test', methods=['POST'])
 def test_device_connection(device_id):
@@ -441,6 +487,105 @@ def mark_vulnerability_fixed(vuln_id):
         logger.error(f"Error marking vulnerability as fixed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/devices/stats')
+def api_get_device_stats():
+    """Get real device statistics"""
+    performance = live_monitor.get_current_data()['performance']
+    return jsonify(performance)
+
+# Add new endpoints for live data
+@app.route('/api/live/devices')
+def get_live_devices():
+    """Get real-time device status from DevNet"""
+    return jsonify(live_monitor.get_current_data()['devices'])
+
+@app.route('/api/live/performance')
+def get_live_performance():
+    """Get live performance metrics"""
+    return jsonify(live_monitor.get_current_data()['performance'])
+
+@app.route('/api/live/alerts')
+def get_live_alerts():
+    """Get real network alerts"""
+    return jsonify(live_monitor.get_current_data()['alerts'])
+
+@app.route('/api/dashboard/mode')
+def get_dashboard_mode():
+    """Get current dashboard mode and DevNet status"""
+    return jsonify({
+        'mode': dashboard_mode,
+        'devnet_available': dashboard_mode == "live",
+        'description': 'Live DevNet data' if dashboard_mode == "live" else 'Professional simulation mode',
+        'message': 'Connected to real Cisco devices' if dashboard_mode == "live" else 'Using simulated data - perfect for portfolio demonstration'
+    })
+
+@app.route('/api/devnet/retry')
+def retry_devnet_connection():
+    """Try to reconnect to DevNet devices"""
+    global dashboard_mode
+    
+    print("🔄 Retrying DevNet connection...")
+    test_results = devnet_manager.test_all_devices()
+    
+    if test_results['working_devices']:
+        dashboard_mode = "live"
+        if hasattr(live_monitor, 'switch_to_live_mode'):
+            live_monitor.switch_to_live_mode()
+        return jsonify({
+            'status': 'success',
+            'message': f'Connected to {len(test_results["working_devices"])} DevNet devices',
+            'mode': 'live'
+        })
+    else:
+        return jsonify({
+            'status': 'unavailable',
+            'message': 'DevNet still unavailable - continuing with simulation',
+            'mode': 'simulation'
+        })
+
+@app.route('/api/devnet/test/<device_name>')
+def test_devnet_device(device_name):
+    """Test DevNet device or return simulation"""
+    if dashboard_mode == "live":
+        result = devnet_manager.test_connectivity(device_name)
+    else:
+        # Return simulated test result
+        result = {
+            'status': 'simulated',
+            'message': 'Simulated connection test successful',
+            'device_info': {
+                'version': 'Cisco IOS XE Software, Version 17.03.04a (simulated)',
+                'hostname': f'hostname SIM-{device_name.upper()}'
+            },
+            'timestamp': datetime.now().isoformat(),
+            'note': 'This is high-quality simulated data for demonstration'
+        }
+    
+    return jsonify(result)
+
+@app.route('/api/devnet/interfaces/<device_name>')
+def get_device_interfaces(device_name):
+    """Get interface data with simulation fallback"""
+    if dashboard_mode == "live":
+        if hasattr(devnet_manager, 'get_live_interfaces'):
+            result = devnet_manager.get_live_interfaces(device_name)
+        else:
+            result = {'status': 'error', 'message': 'Method not available'}
+    else:
+        # Return simulated interface data
+        result = {
+            'status': 'simulated',
+            'interfaces': '''Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet1       192.168.1.1     YES manual up                    up      
+GigabitEthernet2       192.168.2.1     YES manual up                    up      
+GigabitEthernet3       unassigned      YES unset  administratively down down    
+Loopback0              10.0.0.1        YES manual up                    up      
+Loopback1              172.16.1.1      YES manual up                    up''',
+            'message': 'Simulated interface data for demonstration'
+        }
+    
+    return jsonify(result)
+
 def background_monitoring():
     """Background thread for continuous network monitoring"""
     logger.info("Starting background monitoring thread")
@@ -471,13 +616,22 @@ def background_monitoring():
         
         time.sleep(30)  # Check every 30 seconds
 
+# Update the shutdown handler
+@app.teardown_appcontext
+def shutdown_monitor(error):
+    """Stop monitoring when app shuts down"""
+    live_monitor.stop_monitoring()
+
 if __name__ == '__main__':
-    print("🚀 Starting Network Automation Dashboard...")
-    print(f"🌐 Running on: http://{app.config['HOST']}:{app.config['PORT']}")
-    print(f"🔧 Debug mode: {app.config['DEBUG']}")
+    print(f"🌐 Network Dashboard starting in {dashboard_mode.upper()} mode")
+    print(f"📊 Dashboard URL: http://{app.config.get('HOST', '127.0.0.1')}:{app.config.get('PORT', 5000)}")
+    
+    if dashboard_mode == "simulation":
+        print("💡 Portfolio Note: Dashboard is using professional simulation mode")
+        print("🔄 Will automatically switch to live data when DevNet is available")
     
     app.run(
-        host=app.config['HOST'],
-        port=app.config['PORT'], 
-        debug=app.config['DEBUG']
+        host=app.config.get('HOST', '127.0.0.1'),
+        port=app.config.get('PORT', 5000), 
+        debug=app.config.get('DEBUG', True)
     )

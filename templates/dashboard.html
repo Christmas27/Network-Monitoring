@@ -3,6 +3,11 @@
 {% block title %}Dashboard - Network Automation{% endblock %}
 
 {% block content %}
+<!-- Theme Toggle Button -->
+<div class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+    <i class="fas fa-moon" id="theme-icon"></i>
+</div>
+
 <div class="row">
     <!-- Page Header -->
     <div class="col-12">
@@ -23,20 +28,36 @@
     </div>
 </div>
 
-<!-- Statistics Cards -->
+<!-- Add this in your dashboard header -->
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1>🌐 Network Automation Dashboard</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <div id="mode-indicator" class="mb-2">
+            <!-- Mode indicator will be populated by JavaScript -->
+        </div>
+        <button id="retry-devnet" class="btn btn-sm btn-outline-primary" onclick="retryDevNetConnection()" style="display: none;">
+            🔄 Retry DevNet Connection
+        </button>
+        <div id="retry-status" class="mt-2"></div>
+    </div>
+</div>
+
+<!-- Enhanced Statistics Cards with Dark Mode Support -->
 <div class="row g-4 mb-4">
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="card stats-card border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0">
-                        <div class="bg-primary bg-gradient rounded-circle p-3">
-                            <i class="fas fa-server text-white fa-lg"></i>
+                        <div class="stats-icon primary">
+                            <i class="fas fa-server"></i>
                         </div>
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h5 class="card-title text-muted mb-0">Total Devices</h5>
-                        <h2 class="mb-0" id="totalDevices">{{ stats.total_devices or 0 }}</h2>
+                        <h2 class="mb-0" id="total-devices">{{ stats.total_devices or 0 }}</h2>
                     </div>
                 </div>
             </div>
@@ -44,17 +65,17 @@
     </div>
     
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="card stats-card border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0">
-                        <div class="bg-success bg-gradient rounded-circle p-3">
-                            <i class="fas fa-check-circle text-white fa-lg"></i>
+                        <div class="stats-icon success">
+                            <i class="fas fa-check-circle"></i>
                         </div>
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h5 class="card-title text-muted mb-0">Online</h5>
-                        <h2 class="mb-0 text-success" id="onlineDevices">{{ stats.online_devices or 0 }}</h2>
+                        <h2 class="mb-0 text-success" id="online-devices">{{ stats.online_devices or 0 }}</h2>
                     </div>
                 </div>
             </div>
@@ -62,17 +83,17 @@
     </div>
     
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="card stats-card border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0">
-                        <div class="bg-danger bg-gradient rounded-circle p-3">
-                            <i class="fas fa-exclamation-circle text-white fa-lg"></i>
+                        <div class="stats-icon danger">
+                            <i class="fas fa-exclamation-circle"></i>
                         </div>
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h5 class="card-title text-muted mb-0">Offline</h5>
-                        <h2 class="mb-0 text-danger" id="offlineDevices">{{ stats.offline_devices or 0 }}</h2>
+                        <h2 class="mb-0 text-danger" id="offline-devices">{{ stats.offline_devices or 0 }}</h2>
                     </div>
                 </div>
             </div>
@@ -80,17 +101,17 @@
     </div>
     
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="card stats-card border-0 shadow-sm">
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="flex-shrink-0">
-                        <div class="bg-warning bg-gradient rounded-circle p-3">
-                            <i class="fas fa-bell text-white fa-lg"></i>
+                        <div class="stats-icon warning">
+                            <i class="fas fa-bell"></i>
                         </div>
                     </div>
                     <div class="flex-grow-1 ms-3">
                         <h5 class="card-title text-muted mb-0">Alerts</h5>
-                        <h2 class="mb-0 text-warning" id="totalAlerts">{{ stats.total_alerts or 0 }}</h2>
+                        <h2 class="mb-0 text-warning" id="total-alerts">{{ stats.total_alerts or 0 }}</h2>
                     </div>
                 </div>
             </div>
@@ -269,6 +290,48 @@
         </div>
     </div>
 </div>
+
+<!-- Dashboard Mode Indicator -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-desktop me-2 text-primary"></i>
+                            Dashboard Mode
+                        </h5>
+                    </div>
+                    <div id="mode-indicator" class="d-flex align-items-center">
+                        <!-- Mode badge will be injected here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Retry DevNet Connection -->
+<div class="row g-4 mb-4" id="retry-devnet" style="display: none;">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-plug me-2 text-danger"></i>
+                            DevNet Connection
+                        </h5>
+                    </div>
+                    <div id="retry-status" class="d-flex align-items-center">
+                        <!-- Retry status will be injected here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -282,6 +345,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
     loadRecentAlerts();
     startAutoRefresh();
+    updateDashboardMode();
+    initializeTheme();
 });
 
 // Initialize charts
@@ -489,10 +554,253 @@ function addDevice() {
     });
 }
 
-// Auto refresh every 30 seconds
-function startAutoRefresh() {
-    setInterval(refreshDashboard, 30000);
+// Load real device data
+function loadDashboardData() {
+    // Load real device data
+    fetch('/api/live/performance')
+        .then(response => response.json())
+        .then(data => {
+            updatePerformanceMetrics(data);
+        })
+        .catch(error => console.error('Error loading performance data:', error));
+    
+    // Load live alerts
+    fetch('/api/live/alerts')
+        .then(response => response.json())
+        .then(data => {
+            updateAlertsPanel(data);
+        })
+        .catch(error => console.error('Error loading alerts:', error));
+    
+    // Load device status
+    fetch('/api/devices')
+        .then(response => response.json())
+        .then(data => {
+            updateDeviceStatus(data);
+        })
+        .catch(error => console.error('Error loading devices:', error));
 }
+
+function updatePerformanceMetrics(data) {
+    document.getElementById('total-devices').textContent = data.total_devices || 0;
+    document.getElementById('online-devices').textContent = data.online_devices || 0;
+    document.getElementById('offline-devices').textContent = data.offline_devices || 0;
+    document.getElementById('uptime-percentage').textContent = (data.uptime_percentage || 0) + '%';
+    
+    // Update network health indicator
+    const healthElement = document.getElementById('network-health');
+    if (healthElement) {
+        healthElement.textContent = data.network_health || 'Unknown';
+        healthElement.className = `badge ${data.network_health === 'Good' ? 'bg-success' : 
+                                             data.network_health === 'Warning' ? 'bg-warning' : 'bg-danger'}`;
+    }
+}
+
+function updateAlertsPanel(alerts) {
+    const alertsContainer = document.getElementById('alerts-container');
+    if (alertsContainer && alerts.length > 0) {
+        alertsContainer.innerHTML = alerts.slice(-5).map(alert => `
+            <div class="alert alert-${alert.severity === 'error' ? 'danger' : 'success'} alert-dismissible fade show">
+                <small class="text-muted">${new Date(alert.timestamp).toLocaleTimeString()}</small><br>
+                ${alert.message}
+            </div>
+        `).join('');
+    }
+}
+
+function updateDeviceStatus(devices) {
+    const deviceContainer = document.getElementById('device-status-container');
+    if (deviceContainer) {
+        deviceContainer.innerHTML = devices.map(device => `
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">${device.description}</h6>
+                        <p class="card-text">
+                            <span class="badge ${device.status === 'online' ? 'bg-success' : 'bg-danger'}">
+                                ${device.status.toUpperCase()}
+                            </span>
+                            <br><small class="text-muted">Host: ${device.host}</small>
+                            <br><small class="text-muted">Last Check: ${device.last_check}</small>
+                        </p>
+                        <button class="btn btn-sm btn-primary" onclick="testDevice('${device.name}')">
+                            Test Connection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+function testDevice(deviceName) {
+    document.getElementById('test-result').innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing connection...';
+    
+    fetch(`/api/devnet/test/${deviceName}`)
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('test-result');
+            if (data.status === 'success') {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <strong>✅ Connection Successful!</strong><br>
+                        ${data.message}<br>
+                        <small>${data.device_info}</small>
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>❌ Connection Failed</strong><br>
+                        ${data.message}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('test-result').innerHTML = `
+                <div class="alert alert-danger">Error: ${error.message}</div>
+            `;
+        });
+}
+
+// Theme management
+function initializeTheme() {
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    const themeIcon = document.getElementById('theme-icon');
+    
+    // Apply the saved theme
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Update icon
+    if (savedTheme === 'dark') {
+        themeIcon.className = 'fas fa-sun';
+    } else {
+        themeIcon.className = 'fas fa-moon';
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    const themeIcon = document.getElementById('theme-icon');
+    
+    // Apply new theme
+    document.documentElement.setAttribute('data-theme', newTheme);
+    
+    // Save preference
+    localStorage.setItem('theme', newTheme);
+    
+    // Update icon with animation
+    themeIcon.style.transform = 'rotate(360deg)';
+    setTimeout(() => {
+        if (newTheme === 'dark') {
+            themeIcon.className = 'fas fa-sun';
+        } else {
+            themeIcon.className = 'fas fa-moon';
+        }
+        themeIcon.style.transform = 'rotate(0deg)';
+    }, 150);
+    
+    // Show notification
+    showThemeNotification(newTheme);
+}
+
+function showThemeNotification(theme) {
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-info position-fixed';
+    notification.style.cssText = `
+        top: 80px; 
+        right: 20px; 
+        z-index: 1055; 
+        min-width: 200px;
+        animation: slideInRight 0.3s ease;
+    `;
+    notification.innerHTML = `
+        <i class="fas fa-${theme === 'dark' ? 'moon' : 'sun'} me-2"></i>
+        Switched to ${theme === 'dark' ? 'Dark' : 'Light'} Mode
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Add CSS for notifications
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideOutRight {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+
+// Update your existing updateDashboardMode function to work with themes
+function updateDashboardMode() {
+    fetch('/api/dashboard/mode')
+        .then(response => response.json())
+        .then(data => {
+            const modeIndicator = document.getElementById('mode-indicator');
+            if (modeIndicator) {
+                const modeClass = data.mode === 'live' ? 'bg-success' : 'bg-warning';
+                const modeIcon = data.mode === 'live' ? '🌐' : '📡';
+                
+                modeIndicator.innerHTML = `
+                    <span class="badge ${modeClass}">
+                        ${modeIcon} ${data.description}
+                    </span>
+                `;
+                
+                // Add tooltip with more info
+                modeIndicator.title = data.message;
+            }
+            
+            // Show retry button if in simulation mode
+            const retryButton = document.getElementById('retry-devnet');
+            if (retryButton) {
+                retryButton.style.display = data.mode === 'simulation' ? 'block' : 'none';
+            }
+        })
+        .catch(error => console.error('Error updating dashboard mode:', error));
+}
+
+function retryDevNetConnection() {
+    document.getElementById('retry-status').innerHTML = '<div class="spinner-border spinner-border-sm"></div> Checking DevNet...';
+    
+    fetch('/api/devnet/retry')
+        .then(response => response.json())
+        .then(data => {
+            const statusDiv = document.getElementById('retry-status');
+            if (data.status === 'success') {
+                statusDiv.innerHTML = '<div class="alert alert-success">✅ Connected to live DevNet devices!</div>';
+                // Refresh page to show live data
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-info">📡 DevNet still unavailable - continuing with simulation</div>';
+            }
+        });
+}
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    updateDashboardMode();
+    loadDashboardData();
+}, 30000);
 
 // Initial load of recent data
 setTimeout(refreshDashboard, 1000);

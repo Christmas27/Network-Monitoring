@@ -12,13 +12,16 @@
     <!-- Page Header -->
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 mb-0">
-                <i class="fas fa-tachometer-alt me-2 text-primary"></i>
-                Network Dashboard
-            </h1>
+            <div>
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-tachometer-alt me-2 text-primary"></i>
+                    Network Dashboard
+                </h1>
+                <p class="text-muted mb-0">Real-time network monitoring and management</p>
+            </div>
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-primary" onclick="refreshDashboard()">
-                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                    <i class="fas fa-sync-alt me-1"></i>Refresh Data
                 </button>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addDeviceModal">
                     <i class="fas fa-plus me-1"></i>Add Device
@@ -112,6 +115,83 @@
                     <div class="flex-grow-1 ms-3">
                         <h5 class="card-title text-muted mb-0">Alerts</h5>
                         <h2 class="mb-0 text-warning" id="total-alerts">{{ stats.total_alerts or 0 }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Replace your statistics row with this improved version: -->
+<div class="row g-4 mb-4">
+    <!-- Total Devices Card -->
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stats-card bg-gradient-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="card-text mb-1 opacity-75">Total Devices</p>
+                        <h2 class="mb-0 fw-bold" id="total-devices">0</h2>
+                        <small class="opacity-75">Catalyst Center</small>
+                    </div>
+                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                        <i class="fas fa-server fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Online Devices Card -->
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stats-card bg-gradient-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="card-text mb-1 opacity-75">Online Devices</p>
+                        <h2 class="mb-0 fw-bold" id="online-devices">0</h2>
+                        <small class="opacity-75">Active Now</small>
+                    </div>
+                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                        <i class="fas fa-check-circle fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Offline Devices Card -->
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stats-card bg-gradient-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="card-text mb-1 opacity-75">Offline Devices</p>
+                        <h2 class="mb-0 fw-bold" id="offline-devices">0</h2>
+                        <small class="opacity-75">Need Attention</small>
+                    </div>
+                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                        <i class="fas fa-exclamation-triangle fa-lg"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Network Health Card -->
+    <div class="col-xl-3 col-lg-6 col-md-6">
+        <div class="card stats-card bg-gradient-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="card-text mb-1 opacity-75">Network Health</p>
+                        <h2 class="mb-0">
+                            <span id="network-health" class="badge bg-white text-success">Good</span>
+                        </h2>
+                        <small class="opacity-75">Overall Status</small>
+                    </div>
+                    <div class="bg-white bg-opacity-25 rounded-circle p-3">
+                        <i class="fas fa-heartbeat fa-lg"></i>
                     </div>
                 </div>
             </div>

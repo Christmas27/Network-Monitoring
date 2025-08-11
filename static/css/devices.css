@@ -1,0 +1,386 @@
+/* Devices Page Specific Styles */
+
+/* ====================================
+   DEVICE CARDS STYLING
+   ==================================== */
+
+.device-card {
+    background-color: var(--bg-primary) !important;
+    border: 2px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.device-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.15) !important;
+    border-color: var(--primary-color) !important;
+}
+
+[data-theme="dark"] .device-card {
+    background-color: var(--dark-bg-secondary) !important;
+    border-color: var(--dark-border) !important;
+}
+
+[data-theme="dark"] .device-card:hover {
+    box-shadow: 0 12px 30px rgba(0,0,0,0.4) !important;
+}
+
+/* Device card content */
+.device-card .card-title {
+    color: var(--text-primary) !important;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.device-card .detail-item {
+    color: var(--text-primary) !important;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.device-card .detail-item .fw-medium {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+.device-card .small {
+    color: var(--text-secondary) !important;
+    font-size: 0.85rem;
+}
+
+.device-card .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* Device icons */
+.device-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-color), #4285f4) !important;
+    color: white !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+[data-theme="dark"] .device-icon {
+    background: linear-gradient(135deg, var(--primary-color), #5a9fd4) !important;
+}
+
+/* Device model description */
+.device-model {
+    background: var(--bg-secondary) !important;
+    border-left: 4px solid var(--primary-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+}
+
+.device-model .text-muted {
+    color: var(--text-secondary) !important;
+    font-style: italic;
+}
+
+[data-theme="dark"] .device-model {
+    background: var(--dark-bg-tertiary) !important;
+}
+
+/* ====================================
+   STATISTICS CARDS
+   ==================================== */
+
+.stats-card {
+    background-color: var(--bg-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+}
+
+[data-theme="dark"] .stats-card {
+    background-color: var(--dark-bg-secondary) !important;
+    border-color: var(--dark-border) !important;
+}
+
+[data-theme="dark"] .stats-card:hover {
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3) !important;
+}
+
+.stats-card h6 {
+    color: var(--text-secondary) !important;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.stats-card h3 {
+    color: var(--text-primary) !important;
+    font-weight: 700;
+    font-size: 2rem;
+}
+
+.stats-card small {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem;
+}
+
+/* Statistics icons */
+.stats-icon {
+    width: 55px;
+    height: 55px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+/* ====================================
+   CONNECTION STATUS BANNER
+   ==================================== */
+
+.card-body h6 {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+.card-body small.text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* ====================================
+   CARD HEADERS
+   ==================================== */
+
+.card-header {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.card-header .card-title {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+.card-header small {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .card-header {
+    background-color: var(--dark-bg-tertiary) !important;
+    border-bottom-color: var(--dark-border) !important;
+}
+
+/* ====================================
+   BADGES AND BUTTONS
+   ==================================== */
+
+.badge.bg-light {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color);
+    font-weight: 500;
+}
+
+[data-theme="dark"] .badge.bg-light {
+    background-color: var(--dark-bg-tertiary) !important;
+    color: var(--dark-text-primary) !important;
+    border-color: var(--dark-border);
+}
+
+/* Status badges */
+.badge.bg-success {
+    background-color: #28a745 !important;
+    color: white !important;
+}
+
+.badge.bg-danger {
+    background-color: #dc3545 !important;
+    color: white !important;
+}
+
+/* Button enhancements */
+.btn-outline-primary:hover {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+/* ====================================
+   TABLE STYLING
+   ==================================== */
+
+.table {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+.table th {
+    color: var(--text-primary) !important;
+    background-color: var(--bg-secondary) !important;
+    border-bottom: 2px solid var(--border-color) !important;
+    font-weight: 600;
+}
+
+.table td {
+    color: var(--text-primary) !important;
+    border-top: 1px solid var(--border-color) !important;
+}
+
+.table td strong {
+    color: var(--text-primary) !important;
+}
+
+.table small {
+    color: var(--text-secondary) !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .table {
+    background-color: var(--dark-bg-secondary) !important;
+}
+
+[data-theme="dark"] .table th {
+    background-color: var(--dark-bg-tertiary) !important;
+    border-bottom-color: var(--dark-border) !important;
+}
+
+[data-theme="dark"] .table td {
+    border-top-color: var(--dark-border) !important;
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+    background-color: var(--dark-bg-tertiary) !important;
+}
+
+/* ====================================
+   RESPONSIVE DESIGN
+   ==================================== */
+
+@media (max-width: 768px) {
+    .device-card {
+        margin-bottom: 1rem;
+    }
+    
+    .stats-card .card-body {
+        padding: 1rem;
+    }
+    
+    .device-icon {
+        width: 45px;
+        height: 45px;
+        font-size: 1.1rem;
+    }
+    
+    .stats-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.2rem;
+    }
+    
+    .card-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .device-card .card-body {
+        padding: 1rem;
+    }
+    
+    .device-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    
+    .device-card .card-title {
+        font-size: 1rem;
+    }
+    
+    .detail-item {
+        font-size: 0.85rem !important;
+    }
+}
+
+/* ====================================
+   LOADING AND ERROR STATES
+   ==================================== */
+
+.loading-container {
+    color: var(--text-secondary) !important;
+}
+
+.loading-container i {
+    color: var(--primary-color) !important;
+}
+
+.error-container {
+    color: var(--text-secondary) !important;
+}
+
+.error-container .text-danger {
+    color: #dc3545 !important;
+}
+
+.error-container .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* ====================================
+   ANIMATIONS
+   ==================================== */
+
+@keyframes deviceCardAppear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.device-card.fade-in {
+    animation: deviceCardAppear 0.5s ease-out;
+}
+
+/* Test button states */
+.btn-loading {
+    position: relative;
+    color: transparent !important;
+}
+
+.btn-loading::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

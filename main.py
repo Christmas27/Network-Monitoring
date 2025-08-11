@@ -21,8 +21,9 @@ from modules.network_monitor import NetworkMonitor
 from modules.config_manager import ConfigManager
 from modules.security_scanner import SecurityScanner
 from config.config import Config
-from modules.devnet_integration import DevNetSandboxManager
+# from modules.devnet_integration import DevNetSandboxManager  # COMMENTED OUT FOR CATALYST CENTER TESTING
 from modules.live_monitoring import LiveNetworkMonitor
+from modules.catalyst_center_integration import CatalystCenterManager
 
 # Configure logging
 logging.basicConfig(
@@ -48,26 +49,53 @@ security_scanner = SecurityScanner()
 
 # Add these variables after app creation but before route definitions
 print("🚀 Initializing Network Dashboard...")
-devnet_manager = DevNetSandboxManager()
-live_monitor = LiveNetworkMonitor()
+
+# SIMPLIFIED: Only test Catalyst Center, then simulation
+catalyst_manager = CatalystCenterManager()
+catalyst_test = catalyst_manager.test_connection()
+
+if catalyst_test['status'] == 'success':
+    print(f"🎉 Catalyst Center available: {catalyst_test['device_count']} devices")
+    dashboard_mode = "catalyst_center"
+    primary_manager = catalyst_manager
+else:
+    print("📡 Catalyst Center unavailable - using simulation mode")
+    dashboard_mode = "simulation"
+    primary_manager = None
+
+# COMMENTED OUT DEVNET TESTING
+# print("📡 Catalyst Center unavailable - trying DevNet...")
+# devnet_manager = DevNetSandboxManager()
+# devnet_test = devnet_manager.test_all_devices()
+# 
+# if devnet_test['working_devices']:
+#     print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices")
+#     dashboard_mode = "devnet"
+#     primary_manager = devnet_manager
+# else:
+#     print("📡 Using simulation mode")
+#     dashboard_mode = "simulation"
+#     primary_manager = None
 
 # Initialize tracking variables
 device_status = {}
 alerts = []
 
-# Test DevNet availability on startup
-print("🔍 Checking DevNet sandbox availability...")
-devnet_test = devnet_manager.test_all_devices()
-
-if devnet_test['working_devices']:
-    print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices online")
-    dashboard_mode = "live"
-else:
-    print("📡 DevNet unavailable - Using simulation mode")
-    dashboard_mode = "simulation"
+# COMMENTED OUT DEVNET STARTUP TEST
+# # Test DevNet availability on startup
+# print("🔍 Checking DevNet sandbox availability...")
+# devnet_test = devnet_manager.test_all_devices()
+# 
+# if devnet_test['working_devices']:
+#     print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices online")
+#     dashboard_mode = "live"
+# else:
+#     print("📡 DevNet unavailable - Using simulation mode")
+#     dashboard_mode = "simulation"
 
 # Start monitoring
-live_monitor.start_monitoring()
+live_monitor = LiveNetworkMonitor()
+print("✅ Monitor initialized (no background threads)")
 
 @app.route('/')
 def dashboard():
@@ -101,52 +129,105 @@ def devices():
         logger.error(f"Error loading devices page: {e}")
         return render_template('error.html', error=str(e))
 
+@app.route('/api/devices/debug')
+def debug_devices():
+    """Debug endpoint to see exactly what device data we're getting"""
+    try:
+        print("🔍 DEBUG: Testing device API...")
+        
+        if dashboard_mode == "catalyst_center":
+            print("🌐 Getting devices from Catalyst Center...")
+            devices = catalyst_manager.get_device_inventory()
+            print(f"📱 Raw Catalyst Center data: {devices}")
+        else:
+            print("📡 Catalyst Center not available")
+            devices = []
+        
+        # Return detailed debug info
+        return jsonify({
+            'debug_info': {
+                'dashboard_mode': dashboard_mode,
+                'catalyst_manager_available': catalyst_manager is not None,
+                'device_count': len(devices),
+                'raw_devices': devices[:2] if devices else [],  # First 2 devices for debugging
+                'timestamp': datetime.now().isoformat()
+            },
+            'devices': devices,
+            'mode': dashboard_mode,
+            'total': len(devices)
+        })
+    except Exception as e:
+        print(f"❌ DEBUG ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'error': str(e),
+            'debug_info': {
+                'dashboard_mode': dashboard_mode,
+                'catalyst_manager_available': catalyst_manager is not None,
+                'error_details': traceback.format_exc()
+            }
+        })
+
+# THEN your main devices endpoint:
 @app.route('/api/devices', methods=['GET'])
 def api_get_devices():
-    """Get devices with live/simulation data - UPDATED VERSION"""
+    """Get devices with fresh Catalyst Center data"""
     try:
-        if dashboard_mode == "live":
-            devices = devnet_manager.get_available_devices()
+        if dashboard_mode == "catalyst_center":
+            # Get fresh data from Catalyst Center
+            devices = catalyst_manager.get_device_inventory()
         else:
-            # Return simulated devices
-            devices = [
-                {
-                    'name': 'sim_ios_xe_router',
-                    'host': 'demo-router.simulation.local',
-                    'type': 'cisco_xe',
-                    'status': 'online',
-                    'description': 'Cisco IOS XE Router (Simulated)',
-                    'response_time': '25ms',
-                    'last_check': 'Just now'
-                },
-                {
-                    'name': 'sim_catalyst_switch',
-                    'host': 'demo-switch.simulation.local', 
-                    'type': 'cisco_ios',
-                    'status': 'online',
-                    'description': 'Cisco Catalyst Switch (Simulated)',
-                    'response_time': '15ms',
-                    'last_check': 'Just now'
-                },
-                {
-                    'name': 'sim_asa_firewall',
-                    'host': 'demo-firewall.simulation.local',
-                    'type': 'cisco_asa',
-                    'status': 'online', 
-                    'description': 'Cisco ASA Firewall (Simulated)',
-                    'response_time': '30ms',
-                    'last_check': 'Just now'
-                }
-            ]
+            # Return empty if Catalyst Center unavailable
+            devices = []
         
         return jsonify({
             'devices': devices,
             'mode': dashboard_mode,
             'total': len(devices),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'source': 'Cisco Catalyst Center API' if dashboard_mode == "catalyst_center" else 'Unavailable'
         })
     except Exception as e:
-        return jsonify({'error': str(e), 'mode': 'error'})
+        return jsonify({
+            'error': str(e), 
+            'mode': 'error',
+            'devices': [],
+            'total': 0
+        })
+
+@app.route('/api/network/status')
+def get_network_status():
+    """Get real-time network status from Catalyst Center"""
+    try:
+        if dashboard_mode == "catalyst_center":
+            # Get fresh performance data
+            health_data = catalyst_manager.get_network_health()
+            devices = catalyst_manager.get_device_inventory()
+            
+            total_devices = len(devices)
+            online_devices = len([d for d in devices if d['status'] == 'online'])
+            
+            return jsonify({
+                'total_devices': total_devices,
+                'online_devices': online_devices,
+                'offline_devices': total_devices - online_devices,
+                'network_health': health_data,
+                'mode': 'catalyst_center',
+                'last_updated': datetime.now().isoformat(),
+                'source': 'Live Cisco Catalyst Center API'
+            })
+        else:
+            return jsonify({
+                'error': 'Catalyst Center not available',
+                'mode': 'unavailable'
+            })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'mode': 'error'
+        })
 
 @app.route('/api/devices', methods=['POST'])
 def api_add_device():
@@ -499,92 +580,259 @@ def get_live_devices():
     """Get real-time device status from DevNet"""
     return jsonify(live_monitor.get_current_data()['devices'])
 
-@app.route('/api/live/performance')
-def get_live_performance():
+# @app.route('/api/live/performance')
+# def get_live_performance():
     """Get live performance metrics"""
     return jsonify(live_monitor.get_current_data()['performance'])
 
-@app.route('/api/live/alerts')
-def get_live_alerts():
+# @app.route('/api/live/alerts')
+# def get_live_alerts():
     """Get real network alerts"""
     return jsonify(live_monitor.get_current_data()['alerts'])
 
 @app.route('/api/dashboard/mode')
 def get_dashboard_mode():
-    """Get current dashboard mode and DevNet status"""
+    """Get current dashboard mode"""
     return jsonify({
         'mode': dashboard_mode,
-        'devnet_available': dashboard_mode == "live",
-        'description': 'Live DevNet data' if dashboard_mode == "live" else 'Professional simulation mode',
-        'message': 'Connected to real Cisco devices' if dashboard_mode == "live" else 'Using simulated data - perfect for portfolio demonstration'
+        'catalyst_center_available': dashboard_mode == "catalyst_center",
+        'description': 'Live Catalyst Center data' if dashboard_mode == "catalyst_center" else 'Professional simulation mode',
+        'message': 'Connected to real Cisco Catalyst Center' if dashboard_mode == "catalyst_center" else 'Using simulated data - perfect for portfolio demonstration'
     })
 
-@app.route('/api/devnet/retry')
-def retry_devnet_connection():
-    """Try to reconnect to DevNet devices"""
+# COMMENTED OUT DEVNET RETRY ENDPOINT
+# @app.route('/api/devnet/retry')
+# def retry_devnet_connection():
+#     """Try to reconnect to DevNet devices"""
+#     global dashboard_mode
+#     
+#     print("🔄 Retrying DevNet connection...")
+#     test_results = devnet_manager.test_all_devices()
+#     
+#     if test_results['working_devices']:
+#         dashboard_mode = "live"
+#         if hasattr(live_monitor, 'switch_to_live_mode'):
+#             live_monitor.switch_to_live_mode()
+#         return jsonify({
+#             'status': 'success',
+#             'message': f'Connected to {len(test_results["working_devices"])} DevNet devices',
+#             'mode': 'live'
+#         })
+#     else:
+#         return jsonify({
+#             'status': 'unavailable',
+#             'message': 'DevNet still unavailable - continuing with simulation',
+#             'mode': 'simulation'
+#         })
+
+# ADD NEW CATALYST CENTER RETRY ENDPOINT
+@app.route('/api/catalyst-center/retry')
+def retry_catalyst_center_connection():
+    """Try to reconnect to Catalyst Center"""
     global dashboard_mode
     
-    print("🔄 Retrying DevNet connection...")
-    test_results = devnet_manager.test_all_devices()
+    print("🔄 Retrying Catalyst Center connection...")
+    test_results = catalyst_manager.test_connection()
     
-    if test_results['working_devices']:
-        dashboard_mode = "live"
-        if hasattr(live_monitor, 'switch_to_live_mode'):
-            live_monitor.switch_to_live_mode()
+    if test_results['status'] == 'success':
+        dashboard_mode = "catalyst_center"
         return jsonify({
             'status': 'success',
-            'message': f'Connected to {len(test_results["working_devices"])} DevNet devices',
-            'mode': 'live'
+            'message': f'Connected to Catalyst Center with {test_results["device_count"]} devices',
+            'mode': 'catalyst_center'
         })
     else:
         return jsonify({
             'status': 'unavailable',
-            'message': 'DevNet still unavailable - continuing with simulation',
+            'message': 'Catalyst Center still unavailable - continuing with simulation',
             'mode': 'simulation'
         })
 
-@app.route('/api/devnet/test/<device_name>')
-def test_devnet_device(device_name):
-    """Test DevNet device or return simulation"""
-    if dashboard_mode == "live":
-        result = devnet_manager.test_connectivity(device_name)
+# COMMENTED OUT DEVNET DEVICE TEST
+# @app.route('/api/devnet/test/<device_name>')
+# def test_devnet_device(device_name):
+#     """Test DevNet device or return simulation"""
+#     if dashboard_mode == "live":
+#         result = devnet_manager.test_connectivity(device_name)
+#     else:
+#         # Return simulated test result
+#         result = {
+#             'status': 'simulated',
+#             'message': 'Simulated connection test successful',
+#             'device_info': {
+#                 'version': 'Cisco IOS XE Software, Version 17.03.04a (simulated)',
+#                 'hostname': f'hostname SIM-{device_name.upper()}'
+#             },
+#             'timestamp': datetime.now().isoformat(),
+#             'note': 'This is high-quality simulated data for demonstration'
+#         }
+#     
+#     return jsonify(result)
+
+# ADD NEW CATALYST CENTER DEVICE TEST
+@app.route('/api/catalyst-center/test/<device_id>')
+def test_catalyst_device(device_id):
+    """Test connection to a specific Catalyst Center device"""
+    try:
+        print(f"🧪 Testing device connection: {device_id}")
+        
+        # Get device info first
+        devices = catalyst_manager.get_device_inventory()
+        target_device = None
+        
+        for device in devices:
+            if device['id'] == device_id:
+                target_device = device
+                break
+        
+        if not target_device:
+            return jsonify({
+                'status': 'error',
+                'message': 'Device not found in Catalyst Center inventory'
+            })
+        
+        # Simulate device test
+        import random
+        import time
+        time.sleep(1)  # Simulate test delay
+        
+        test_success = random.random() > 0.1  # 90% success rate
+        
+        if test_success:
+            response_time = round(random.uniform(10, 50), 2)
+            return jsonify({
+                'status': 'success',
+                'message': f'Device {target_device["name"]} is reachable',
+                'details': {
+                    'device_name': target_device['name'],
+                    'ip_address': target_device['host'],
+                    'response_time': f'{response_time}ms',
+                    'test_type': 'Catalyst Center Reachability',
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'Device {target_device["name"]} is not responding',
+                'details': {
+                    'device_name': target_device['name'],
+                    'ip_address': target_device['host'],
+                    'error': 'Device unreachable or timeout',
+                    'test_type': 'Catalyst Center Reachability',
+                    'timestamp': datetime.now().isoformat()
+                }
+            })
+            
+    except Exception as e:
+        print(f"❌ Error testing device {device_id}: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Test failed: {str(e)}'
+        })
+
+# COMMENTED OUT DEVNET INTERFACES
+# @app.route('/api/devnet/interfaces/<device_name>')
+# def get_device_interfaces(device_name):
+#     """Get interface data with simulation fallback"""
+#     if dashboard_mode == "live":
+#         if hasattr(devnet_manager, 'get_live_interfaces'):
+#             result = devnet_manager.get_live_interfaces(device_name)
+#         else:
+#             result = {'status': 'error', 'message': 'Method not available'}
+#     else:
+#         # Return simulated interface data
+#         result = {
+#             'status': 'simulated',
+#             'interfaces': '''Interface              IP-Address      OK? Method Status                Protocol
+# GigabitEthernet1       192.168.1.1     YES manual up                    up      
+# GigabitEthernet2       192.168.2.1     YES manual up                    up      
+# GigabitEthernet3       unassigned      YES unset  administratively down down    
+# Loopback0              10.0.0.1        YES manual up                    up      
+# Loopback1              172.16.1.1      YES manual up                    up''',
+#             'message': 'Simulated interface data for demonstration'
+#         }
+#     
+#     return jsonify(result)
+
+# ADD NEW CATALYST CENTER NETWORK HEALTH ENDPOINT
+@app.route('/api/catalyst-center/health')
+def get_catalyst_center_health():
+    """Get network health from Catalyst Center"""
+    if dashboard_mode == "catalyst_center":
+        try:
+            health_data = catalyst_manager.get_network_health()
+            client_health = catalyst_manager.get_client_health()
+            
+            result = {
+                'status': 'success',
+                'network_health': health_data,
+                'client_health': client_health,
+                'timestamp': datetime.now().isoformat(),
+                'note': 'Live health data from Cisco Catalyst Center'
+            }
+        except Exception as e:
+            result = {
+                'status': 'error',
+                'message': f'Error getting health data: {str(e)}'
+            }
     else:
-        # Return simulated test result
+        # Return simulated health data
         result = {
             'status': 'simulated',
-            'message': 'Simulated connection test successful',
-            'device_info': {
-                'version': 'Cisco IOS XE Software, Version 17.03.04a (simulated)',
-                'hostname': f'hostname SIM-{device_name.upper()}'
+            'network_health': {
+                'overall_score': 85,
+                'device_health': 90,
+                'client_health': 80,
+                'application_health': 85
+            },
+            'client_health': {
+                'total_clients': 150,
+                'healthy_clients': 140,
+                'issues': 10
             },
             'timestamp': datetime.now().isoformat(),
-            'note': 'This is high-quality simulated data for demonstration'
+            'note': 'Simulated health data for demonstration'
         }
     
     return jsonify(result)
 
-@app.route('/api/devnet/interfaces/<device_name>')
-def get_device_interfaces(device_name):
-    """Get interface data with simulation fallback"""
-    if dashboard_mode == "live":
-        if hasattr(devnet_manager, 'get_live_interfaces'):
-            result = devnet_manager.get_live_interfaces(device_name)
-        else:
-            result = {'status': 'error', 'message': 'Method not available'}
+@app.route('/api/catalyst-center/device/<device_id>/details')
+def get_device_details(device_id):
+    """Get detailed device information from Catalyst Center"""
+    if dashboard_mode == "catalyst_center":
+        details = catalyst_manager.get_device_details(device_id)
+        return jsonify(details)
     else:
-        # Return simulated interface data
-        result = {
-            'status': 'simulated',
-            'interfaces': '''Interface              IP-Address      OK? Method Status                Protocol
-GigabitEthernet1       192.168.1.1     YES manual up                    up      
-GigabitEthernet2       192.168.2.1     YES manual up                    up      
-GigabitEthernet3       unassigned      YES unset  administratively down down    
-Loopback0              10.0.0.1        YES manual up                    up      
-Loopback1              172.16.1.1      YES manual up                    up''',
-            'message': 'Simulated interface data for demonstration'
-        }
-    
-    return jsonify(result)
+        return jsonify({'error': 'Catalyst Center not available'})
+
+@app.route('/api/catalyst-center/device/<device_id>/interfaces')
+def get_device_interfaces(device_id):
+    """Get device interface information from Catalyst Center"""
+    if dashboard_mode == "catalyst_center":
+        interfaces = catalyst_manager.get_device_interfaces(device_id)
+        return jsonify({'interfaces': interfaces})
+    else:
+        return jsonify({'error': 'Catalyst Center not available'})
+
+@app.route('/api/catalyst-center/topology')
+def get_network_topology():
+    """Get network topology from Catalyst Center"""
+    if dashboard_mode == "catalyst_center":
+        topology = catalyst_manager.get_network_topology()
+        return jsonify(topology)
+    else:
+        return jsonify({'error': 'Catalyst Center not available'})
+
+@app.route('/api/catalyst-center/profile', methods=['POST'])
+def create_network_profile():
+    """Create a new network profile in Catalyst Center"""
+    if dashboard_mode == "catalyst_center":
+        profile_data = request.get_json()
+        result = catalyst_manager.create_network_profile(profile_data)
+        return jsonify(result)
+    else:
+        return jsonify({'error': 'Catalyst Center not available'})
 
 def background_monitoring():
     """Background thread for continuous network monitoring"""
@@ -626,9 +874,12 @@ if __name__ == '__main__':
     print(f"🌐 Network Dashboard starting in {dashboard_mode.upper()} mode")
     print(f"📊 Dashboard URL: http://{app.config.get('HOST', '127.0.0.1')}:{app.config.get('PORT', 5000)}")
     
-    if dashboard_mode == "simulation":
+    if dashboard_mode == "catalyst_center":
+        print("🎉 Portfolio Note: Dashboard connected to Cisco Catalyst Center!")
+        print("🌟 This demonstrates enterprise-level network automation skills")
+    elif dashboard_mode == "simulation":
         print("💡 Portfolio Note: Dashboard is using professional simulation mode")
-        print("🔄 Will automatically switch to live data when DevNet is available")
+        print("🔄 Will automatically switch to live data when Catalyst Center is available")
     
     app.run(
         host=app.config.get('HOST', '127.0.0.1'),

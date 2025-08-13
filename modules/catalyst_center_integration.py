@@ -294,6 +294,72 @@ class CatalystCenterManager:
         except Exception as e:
             print(f"❌ Error creating profile: {e}")
             return {}
+    
+    def get_network_topology_for_visualization(self) -> Dict:
+        """Get network topology specifically formatted for visualization"""
+        try:
+            if not self.auth_token:
+                if not self.authenticate():
+                    return {'error': 'Authentication failed'}
+            
+            print("🌐 Fetching network topology for visualization...")
+            
+            # Get devices first
+            devices = self.get_device_inventory()
+            
+            # Try to get physical topology
+            topology_url = f"{self.base_url}/dna/intent/api/v1/topology/physical-topology"
+            
+            response = self.session.get(
+                topology_url,
+                headers=self.headers,
+                timeout=30
+            )
+            
+            topology_data = {}
+            if response.status_code == 200:
+                topology_data = response.json()
+                print(f"✅ Got topology data from Catalyst Center")
+            else:
+                print(f"⚠️ Could not get topology links (status: {response.status_code})")
+            
+            # Format for visualization
+            return {
+                'status': 'success',
+                'devices': devices,
+                'topology': topology_data,
+                'device_count': len(devices),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting topology for visualization: {e}")
+            return {'error': str(e)}
+    
+    def get_device_neighbors(self, device_id: str) -> List[Dict]:
+        """Get neighboring devices for topology mapping"""
+        try:
+            if not self.auth_token:
+                if not self.authenticate():
+                    return []
+            
+            neighbors_url = f"{self.base_url}/dna/intent/api/v1/topology/l2/{device_id}"
+            
+            response = self.session.get(
+                neighbors_url,
+                headers=self.headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json().get('response', [])
+            else:
+                print(f"❌ Failed to get neighbors for {device_id}: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"❌ Error getting device neighbors: {e}")
+            return []
 
 def test_catalyst_center():
     """Quick test function"""

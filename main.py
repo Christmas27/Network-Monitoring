@@ -817,12 +817,75 @@ def get_device_interfaces(device_id):
 
 @app.route('/api/catalyst-center/topology')
 def get_network_topology():
-    """Get network topology from Catalyst Center"""
-    if dashboard_mode == "catalyst_center":
-        topology = catalyst_manager.get_network_topology()
-        return jsonify(topology)
-    else:
-        return jsonify({'error': 'Catalyst Center not available'})
+    """Get network topology from Catalyst Center with enhanced processing"""
+    try:
+        if dashboard_mode == "catalyst_center":
+            print("🎯 Getting real topology from Catalyst Center...")
+            
+            # Get topology data using network monitor (which handles the conversion)
+            topology_data = network_monitor.get_network_topology()
+            
+            return jsonify(topology_data)
+        else:
+            return jsonify({
+                'error': 'Catalyst Center not available',
+                'mode': 'simulation'
+            })
+    except Exception as e:
+        print(f"❌ Error in topology endpoint: {e}")
+        return jsonify({
+            'error': str(e),
+            'mode': 'error'
+        })
+
+@app.route('/api/catalyst-center/topology/debug')
+def debug_topology():
+    """Debug endpoint to see raw topology data"""
+    try:
+        print("🔍 DEBUG: Getting raw topology data...")
+        
+        if dashboard_mode == "catalyst_center":
+            # Get raw data from Catalyst Center
+            raw_devices = catalyst_manager.get_device_inventory()
+            raw_topology = catalyst_manager.get_network_topology()
+            
+            # Get processed data from network monitor
+            processed_topology = network_monitor.get_network_topology()
+            
+            return jsonify({
+                'debug_info': {
+                    'dashboard_mode': dashboard_mode,
+                    'raw_device_count': len(raw_devices),
+                    'processed_node_count': len(processed_topology.get('nodes', [])),
+                    'processed_edge_count': len(processed_topology.get('edges', [])),
+                    'catalyst_center_available': True
+                },
+                'raw_devices': raw_devices[:3] if raw_devices else [],  # First 3 for debugging
+                'raw_topology': raw_topology,
+                'processed_topology': processed_topology,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'debug_info': {
+                    'dashboard_mode': dashboard_mode,
+                    'catalyst_center_available': False,
+                    'message': 'Catalyst Center not available'
+                }
+            })
+            
+    except Exception as e:
+        print(f"❌ DEBUG ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'error': str(e),
+            'debug_info': {
+                'dashboard_mode': dashboard_mode,
+                'error_details': traceback.format_exc()
+            }
+        })
 
 @app.route('/api/catalyst-center/profile', methods=['POST'])
 def create_network_profile():

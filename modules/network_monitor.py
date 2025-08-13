@@ -735,3 +735,242 @@ class NetworkMonitor:
         except Exception as e:
             logger.error(f"Error exporting metrics: {e}")
             return ""
+    
+    def get_network_topology(self):
+        """Get network topology from Catalyst Center or simulation"""
+        try:
+            # Import here to avoid circular imports
+            from modules.catalyst_center_integration import CatalystCenterManager
+            
+            catalyst_manager = CatalystCenterManager()
+            
+            # Test if Catalyst Center is available
+            test_result = catalyst_manager.test_connection()
+            
+            if test_result['status'] == 'success':
+                print("🌐 Getting topology from Catalyst Center...")
+                return self._get_catalyst_center_topology(catalyst_manager)
+            else:
+                print("📡 Catalyst Center unavailable - using simulation")
+                return self._get_simulation_topology()
+                
+        except Exception as e:
+            print(f"❌ Error getting topology: {e}")
+            return self._get_simulation_topology()
+
+    def _get_catalyst_center_topology(self, catalyst_manager):
+        """Convert Catalyst Center data to topology format"""
+        try:
+            # Get devices from Catalyst Center
+            devices = catalyst_manager.get_device_inventory()
+            topology_data = catalyst_manager.get_network_topology()
+            
+            # Convert devices to topology nodes
+            nodes = []
+            for device in devices:
+                node = {
+                    'id': device['id'],
+                    'label': f"{device['name']}\n{device['host']}",
+                    'type': self._map_device_type(device['type']),
+                    'status': device['status'],
+                    'ip': device['host'],
+                    'model': device.get('description', 'Cisco Device'),
+                    'location': device.get('location', 'Unknown'),
+                    'series': device.get('series', 'Unknown'),
+                    'role': device.get('role', 'Unknown'),
+                    'hostname': device['name']
+                }
+                nodes.append(node)
+            
+            # Try to get topology links from Catalyst Center
+            edges = self._get_catalyst_center_links(catalyst_manager, nodes)
+            
+            # Calculate stats
+            online_devices = len([d for d in devices if d['status'] == 'online'])
+            total_devices = len(devices)
+            
+            stats = {
+                'totalDevices': total_devices,
+                'onlineDevices': online_devices,
+                'totalConnections': len(edges),
+                'networkHealth': f"{round((online_devices / total_devices * 100) if total_devices > 0 else 0)}%" 
+            }
+            
+            return {
+                'status': 'catalyst_center',
+                'nodes': nodes,
+                'edges': edges,
+                'stats': stats,
+                'source': 'Cisco Catalyst Center API',
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            print(f"❌ Error processing Catalyst Center topology: {e}")
+            return self._get_simulation_topology()
+
+    def _map_device_type(self, device_type):
+        """Map Catalyst Center device types to topology types"""
+        type_mapping = {
+            'Switches and Hubs': 'switch',
+            'Routers': 'router',
+            'Wireless Controller': 'wireless_controller',
+            'Access Points': 'access_point',
+            'Security': 'firewall',
+            'Unified AP': 'access_point',
+            'Meraki AP': 'access_point',
+            'Catalyst': 'switch',
+            'ISR': 'router',
+            'ASR': 'router',
+            'Nexus': 'switch',
+            'WLC': 'wireless_controller'
+        }
+        
+        # Check for keywords in device type
+        device_type_lower = device_type.lower()
+        
+        if 'switch' in device_type_lower or 'catalyst' in device_type_lower:
+            return 'switch'
+        elif 'router' in device_type_lower or 'isr' in device_type_lower or 'asr' in device_type_lower:
+            return 'router'
+        elif 'access point' in device_type_lower or 'ap' in device_type_lower or 'aironet' in device_type_lower:
+            return 'access_point'
+        elif 'wireless' in device_type_lower or 'wlc' in device_type_lower:
+            return 'wireless_controller'
+        elif 'firewall' in device_type_lower or 'asa' in device_type_lower or 'security' in device_type_lower:
+            return 'firewall'
+        else:
+            return 'switch'  # Default to switch
+
+    def _get_catalyst_center_links(self, catalyst_manager, nodes):
+        """Get network links from Catalyst Center topology API"""
+        try:
+            # Try to get topology data
+            topology_response = catalyst_manager.get_network_topology()
+            
+            edges = []
+            
+            # If topology API returns link data, process it
+            if 'response' in topology_response and 'links' in topology_response['response']:
+                links = topology_response['response']['links']
+                
+                for link in links:
+                    source = link.get('source')
+                    target = link.get('target')
+                    
+                    if source and target:
+                        edge = {
+                            'from': source,
+                            'to': target,
+                            'status': 'active',  # Assume active if in topology
+                            'bandwidth': link.get('linkStatus', 'Unknown')
+                        }
+                        edges.append(edge)
+            
+            # If no links from API, create logical connections based on device hierarchy
+            else:
+                edges = self._create_logical_topology(nodes)
+            
+            return edges
+            
+        except Exception as e:
+            print(f"⚠️ Could not get links from Catalyst Center, creating logical topology: {e}")
+            return self._create_logical_topology(nodes)
+
+    def _create_logical_topology(self, nodes):
+        """Create logical network topology based on device types and IPs"""
+        edges = []
+        
+        # Group devices by type
+        routers = [n for n in nodes if n['type'] == 'router']
+        switches = [n for n in nodes if n['type'] == 'switch']
+        access_points = [n for n in nodes if n['type'] == 'access_point']
+        firewalls = [n for n in nodes if n['type'] == 'firewall']
+        wireless_controllers = [n for n in nodes if n['type'] == 'wireless_controller']
+        
+        # Connect routers to firewalls
+        for router in routers:
+            for firewall in firewalls:
+                edges.append({
+                    'from': router['id'],
+                    'to': firewall['id'],
+                    'status': 'active',
+                    'bandwidth': '1 Gbps'
+                })
+        
+        # Connect routers to core switches
+        core_switches = [s for s in switches if 'core' in s.get('role', '').lower() or 'distribution' in s.get('role', '').lower()]
+        if not core_switches:
+            core_switches = switches[:2]  # Take first 2 switches as core
+        
+        for router in routers:
+            for switch in core_switches:
+                edges.append({
+                    'from': router['id'],
+                    'to': switch['id'],
+                    'status': 'active',
+                    'bandwidth': '10 Gbps'
+                })
+        
+        # Connect core switches to access switches
+        access_switches = [s for s in switches if s not in core_switches]
+        
+        for core_switch in core_switches:
+            for access_switch in access_switches:
+                edges.append({
+                    'from': core_switch['id'],
+                    'to': access_switch['id'],
+                    'status': 'active',
+                    'bandwidth': '1 Gbps'
+                })
+        
+        # Connect wireless controllers to access points
+        for wlc in wireless_controllers:
+            for ap in access_points:
+                edges.append({
+                    'from': wlc['id'],
+                    'to': ap['id'],
+                    'status': 'active',
+                    'bandwidth': '1 Gbps'
+                })
+        
+        # If no wireless controllers, connect APs to switches
+        if not wireless_controllers:
+            for ap in access_points:
+                # Connect to the nearest switch (first access switch, or first switch)
+                target_switch = access_switches[0] if access_switches else (switches[0] if switches else None)
+                if target_switch:
+                    edges.append({
+                        'from': target_switch['id'],
+                        'to': ap['id'],
+                        'status': 'active',
+                        'bandwidth': '1 Gbps'
+                    })
+        
+        return edges
+
+    def _get_simulation_topology(self):
+        """Fallback simulation topology"""
+        return {
+            'status': 'simulation',
+            'nodes': [
+                { 
+                    'id': 'sim-router-1', 
+                    'label': 'Simulation Router\n192.168.1.1', 
+                    'type': 'router', 
+                    'status': 'online', 
+                    'ip': '192.168.1.1',
+                    'model': 'Cisco ISR 4431 (Simulated)',
+                    'location': 'Data Center (Demo)'
+                }
+            ],
+            'edges': [],
+            'stats': {
+                'totalDevices': 1,
+                'onlineDevices': 1,
+                'totalConnections': 0,
+                'networkHealth': '100%'
+            },
+            'source': 'Simulation Mode',
+            'note': 'Catalyst Center not available - using demo data'
+        }

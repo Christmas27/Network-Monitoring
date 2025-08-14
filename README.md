@@ -75,7 +75,7 @@ Cisco DevNet Sandbox Account
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/Christmas27/Network-Monitoring
+   git clone https://github.com/Christmas27/Network-Monitoring.git
    cd network-automation-dashboard
    ```
 

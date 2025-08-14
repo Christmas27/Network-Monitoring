@@ -28,6 +28,7 @@ venv/
 ENV/
 env/
 .env
+network_dashboard_env/
 
 # Flask
 instance/
@@ -54,6 +55,8 @@ instance/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
 # Logs
 *.log
@@ -63,14 +66,23 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+data/
+device_backups/
+config_backups/
+monitoring_data/
+backups/
 
 # Temporary files
+tmp/
+temp/
 *.tmp
 *.temp
 
 # Config files with sensitive data
 config/secrets.py
 config/production.py
+config/devnet_credentials.py
+config/production_config.py
 
 # Node modules (if you add any JS dependencies)
 node_modules/
@@ -97,3 +109,99 @@ coverage.xml
 # Testing
 .pytest_cache/
 .coverage
+
+# =============================================================================
+# YOUR SPECIFIC DEVELOPMENT & TESTING FILES
+# =============================================================================
+
+# Testing scripts
+test_setup.py
+test_devnet.py
+test_devnet_comprehensive.py
+test_catalyst_simple.py
+test_catalyst_only.py
+simple_test.py
+
+# Development scripts from previous analysis
+git_manager.py
+debug_dashboard.py
+
+# Setup and build scripts
+setup.py
+run.bat
+
+# =============================================================================
+# SENSITIVE CONFIGURATION
+# =============================================================================
+.env
+.env.local
+.env.production
+config/devnet_credentials.py
+config/production_config.py
+
+# =============================================================================
+# DATABASE & DATA FILES
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
+data/
+device_backups/
+config_backups/
+monitoring_data/
+backups/
+
+# =============================================================================
+# DEVELOPMENT NOTES & LOGS
+# =============================================================================
+NOTES.md
+TODO.md
+SCRATCH.md
+notes/
+drafts/
+logs/
+*.log
+
+# =============================================================================
+# PYTHON CACHE & COMPILED
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+*.pyc
+
+# =============================================================================
+# VIRTUAL ENVIRONMENT
+# =============================================================================
+.venv/
+venv/
+env/
+ENV/
+network_dashboard_env/
+
+# =============================================================================
+# IDE & EDITOR
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# OS GENERATED
+# =============================================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# =============================================================================
+# TEMPORARY FILES
+# =============================================================================
+tmp/
+temp/
+*.tmp
+*.temp

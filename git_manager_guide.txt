@@ -1,0 +1,4 @@
+# Most common commands:
+python git_manager.py push "message"          # Push changes
+python git_manager.py pull                    # Pull updates
+python git_manager.py push "message" main     # Push to main branch

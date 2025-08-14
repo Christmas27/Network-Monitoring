@@ -19,9 +19,9 @@ from datetime import datetime
 from modules.device_manager import DeviceManager
 from modules.network_monitor import NetworkMonitor
 from modules.config_manager import ConfigManager
-from modules.security_scanner import SecurityScanner
+from modules.security_scanner import SecurityScanner  # Make sure this matches your file name
+from modules.config import ConfigurationManager  # ADD THIS IMPORT
 from config.config import Config
-# from modules.devnet_integration import DevNetSandboxManager  # COMMENTED OUT FOR CATALYST CENTER TESTING
 from modules.live_monitoring import LiveNetworkMonitor
 from modules.catalyst_center_integration import CatalystCenterManager
 
@@ -45,6 +45,7 @@ CORS(app)
 device_manager = DeviceManager()
 network_monitor = NetworkMonitor()
 config_manager = ConfigManager()
+configuration_manager = ConfigurationManager()  # ADD THIS LINE
 security_scanner = SecurityScanner()
 
 # Add these variables after app creation but before route definitions
@@ -63,35 +64,9 @@ else:
     dashboard_mode = "simulation"
     primary_manager = None
 
-# COMMENTED OUT DEVNET TESTING
-# print("📡 Catalyst Center unavailable - trying DevNet...")
-# devnet_manager = DevNetSandboxManager()
-# devnet_test = devnet_manager.test_all_devices()
-# 
-# if devnet_test['working_devices']:
-#     print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices")
-#     dashboard_mode = "devnet"
-#     primary_manager = devnet_manager
-# else:
-#     print("📡 Using simulation mode")
-#     dashboard_mode = "simulation"
-#     primary_manager = None
-
 # Initialize tracking variables
 device_status = {}
 alerts = []
-
-# COMMENTED OUT DEVNET STARTUP TEST
-# # Test DevNet availability on startup
-# print("🔍 Checking DevNet sandbox availability...")
-# devnet_test = devnet_manager.test_all_devices()
-# 
-# if devnet_test['working_devices']:
-#     print(f"✅ DevNet available: {len(devnet_test['working_devices'])} devices online")
-#     dashboard_mode = "live"
-# else:
-#     print("📡 DevNet unavailable - Using simulation mode")
-#     dashboard_mode = "simulation"
 
 # Start monitoring
 live_monitor = LiveNetworkMonitor()
@@ -129,6 +104,194 @@ def devices():
         logger.error(f"Error loading devices page: {e}")
         return render_template('error.html', error=str(e))
 
+@app.route('/topology')
+def topology():
+    """Network topology visualization page"""
+    try:
+        topology_data = network_monitor.get_network_topology()
+        return render_template('topology.html', topology=topology_data)
+    except Exception as e:
+        logger.error(f"Error loading topology page: {e}")
+        return render_template('error.html', error=str(e))
+
+# FIX: Change route to match navigation
+@app.route('/configuration')  # CHANGED FROM /config
+def configuration():
+    """Configuration management page"""
+    try:
+        # Use the proper configuration manager
+        templates = configuration_manager.get_templates()
+        return render_template('config.html', templates=templates)
+    except Exception as e:
+        logger.error(f"Error loading configuration page: {e}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/security')
+def security():
+    """Security monitoring page"""
+    try:
+        security_status = security_scanner.get_security_overview()
+        return render_template('security.html', security_status=security_status)
+    except Exception as e:
+        logger.error(f"Error loading security page: {e}")
+        return render_template('error.html', error=str(e))
+
+# ADD: Configuration API Endpoints
+@app.route('/api/configuration/devices')
+def api_get_config_devices():
+    """Get devices for configuration management"""
+    try:
+        if dashboard_mode == "catalyst_center":
+            devices = catalyst_manager.get_device_inventory()
+            # Format for configuration page
+            config_devices = []
+            for device in devices:
+                config_devices.append({
+                    'id': device['id'],
+                    'name': device['name'],
+                    'ip': device['host'],
+                    'type': device.get('type', 'Unknown'),
+                    'status': device.get('status', 'unknown')
+                })
+            return jsonify({'devices': config_devices})
+        else:
+            # Simulation devices
+            sim_devices = [
+                {
+                    'id': 'sim-1',
+                    'name': 'Demo-Router-01',
+                    'ip': '192.168.1.1',
+                    'type': 'Router',
+                    'status': 'online'
+                },
+                {
+                    'id': 'sim-2',
+                    'name': 'Demo-Switch-01',
+                    'ip': '192.168.1.10',
+                    'type': 'Switch',
+                    'status': 'online'
+                }
+            ]
+            return jsonify({'devices': sim_devices})
+    except Exception as e:
+        logger.error(f"Error getting configuration devices: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/device/<device_id>/config')
+def api_get_device_config(device_id):
+    """Get device configuration"""
+    try:
+        config = configuration_manager.get_device_configuration(device_id)
+        return jsonify(config)
+    except Exception as e:
+        logger.error(f"Error getting device config: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/templates', methods=['GET'])
+def api_get_config_templates():
+    """Get configuration templates"""
+    try:
+        templates = configuration_manager.get_templates()
+        return jsonify({'templates': templates})
+    except Exception as e:
+        logger.error(f"Error getting templates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/templates', methods=['POST'])
+def api_create_template():
+    """Create new configuration template"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'device_type', 'config_data']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        success = configuration_manager.create_template(data)
+        if success:
+            return jsonify({'success': True, 'message': 'Template created successfully'})
+        else:
+            return jsonify({'error': 'Failed to create template'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error creating template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/templates/<template_id>', methods=['DELETE'])
+def api_delete_template(template_id):
+    """Delete configuration template"""
+    try:
+        success = configuration_manager.delete_template(template_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Template deleted successfully'})
+        else:
+            return jsonify({'error': 'Failed to delete template'}), 500
+    except Exception as e:
+        logger.error(f"Error deleting template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/backups')
+def api_get_config_backups():
+    """Get configuration backups"""
+    try:
+        backups = configuration_manager.get_config_backups()
+        return jsonify({'backups': backups})
+    except Exception as e:
+        logger.error(f"Error getting backups: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/backup', methods=['POST'])
+def api_backup_device_config():
+    """Backup device configuration"""
+    try:
+        data = request.get_json()
+        device_id = data.get('device_id')
+        
+        if not device_id:
+            return jsonify({'error': 'Device ID required'}), 400
+        
+        # Get current configuration
+        config_data = configuration_manager.get_device_configuration(device_id)
+        
+        if 'error' in config_data:
+            return jsonify({'error': config_data['error']}), 500
+        
+        # Save backup
+        success = configuration_manager.backup_device_config(
+            device_id,
+            config_data['config_data'],
+            config_data.get('device_name', f'Device-{device_id}')
+        )
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Configuration backed up successfully'})
+        else:
+            return jsonify({'error': 'Failed to backup configuration'}), 500
+            
+    except Exception as e:
+        logger.error(f"Error backing up configuration: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/configuration/compare', methods=['POST'])
+def api_compare_configurations():
+    """Compare two configurations"""
+    try:
+        data = request.get_json()
+        config1 = data.get('config1', '')
+        config2 = data.get('config2', '')
+        
+        if not config1 or not config2:
+            return jsonify({'error': 'Both configurations required'}), 400
+        
+        comparison = configuration_manager.compare_configurations(config1, config2)
+        return jsonify(comparison)
+        
+    except Exception as e:
+        logger.error(f"Error comparing configurations: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# EXISTING API ENDPOINTS (keep all the others)...
 @app.route('/api/devices/debug')
 def debug_devices():
     """Debug endpoint to see exactly what device data we're getting"""
@@ -267,6 +430,82 @@ def api_device_config(device_id):
         logger.error(f"API error getting device config: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/security/overview')
+def api_security_overview():
+    """Get security overview"""
+    try:
+        overview = security_scanner.get_security_overview()
+        return jsonify(overview)
+    except Exception as e:
+        logger.error(f"Error getting security overview: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/alerts')
+def api_security_alerts():
+    """Get security alerts"""
+    try:
+        alerts = security_scanner.get_security_alerts()
+        return jsonify({'alerts': alerts})
+    except Exception as e:
+        logger.error(f"Error getting security alerts: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/access-logs')
+def api_security_access_logs():
+    """Get access logs"""
+    try:
+        logs = security_scanner.get_access_logs()
+        return jsonify({'logs': logs})
+    except Exception as e:
+        logger.error(f"Error getting access logs: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/compliance', methods=['GET'])
+def api_security_compliance_get():
+    """Get compliance status (GET method)"""
+    try:
+        compliance = security_scanner.run_compliance_check()
+        return jsonify({'compliance': compliance})
+    except Exception as e:
+        logger.error(f"Error getting compliance data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/scan', methods=['POST'])
+def api_security_scan_post():
+    """Run security scan (POST method)"""
+    try:
+        scan_results = security_scanner.scan_for_vulnerabilities()
+        return jsonify(scan_results)
+    except Exception as e:
+        logger.error(f"Error running security scan: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/alerts/<alert_id>/acknowledge', methods=['POST'])
+def api_acknowledge_alert_endpoint(alert_id):
+    """Acknowledge security alert"""
+    try:
+        success = security_scanner.acknowledge_alert(alert_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Alert acknowledged'})
+        else:
+            return jsonify({'error': 'Failed to acknowledge alert'}), 500
+    except Exception as e:
+        logger.error(f"Error acknowledging alert: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/security/alerts/<alert_id>/resolve', methods=['POST'])
+def api_resolve_alert_endpoint(alert_id):
+    """Resolve security alert"""
+    try:
+        success = security_scanner.resolve_alert(alert_id)
+        if success:
+            return jsonify({'success': True, 'message': 'Alert resolved'})
+        else:
+            return jsonify({'error': 'Failed to resolve alert'}), 500
+    except Exception as e:
+        logger.error(f"Error resolving alert: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/devices/<device_id>/backup', methods=['POST'])
 def api_backup_config(device_id):
     """API endpoint to backup device configuration"""
@@ -309,48 +548,6 @@ def api_alerts():
         logger.error(f"API error getting alerts: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/topology')
-def topology():
-    """Network topology visualization page"""
-    try:
-        topology_data = network_monitor.get_network_topology()
-        return render_template('topology.html', topology=topology_data)
-    except Exception as e:
-        logger.error(f"Error loading topology page: {e}")
-        return render_template('error.html', error=str(e))
-
-@app.route('/config')
-def config():
-    """Configuration management page"""
-    try:
-        templates = config_manager.get_config_templates()
-        return render_template('config.html', templates=templates)
-    except Exception as e:
-        logger.error(f"Error loading config page: {e}")
-        return render_template('error.html', error=str(e))
-
-@app.route('/security')
-def security():
-    """Security monitoring page"""
-    try:
-        security_status = security_scanner.get_security_overview()
-        return render_template('security.html', security_status=security_status)
-    except Exception as e:
-        logger.error(f"Error loading security page: {e}")
-        return render_template('error.html', error=str(e))
-
-@app.route('/favicon.ico')
-def favicon():
-    """Serve favicon"""
-    try:
-        from flask import send_from_directory
-        import os
-        return send_from_directory(os.path.join(app.root_path, 'static', 'images'),
-                                 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-    except Exception:
-        # Return empty response if favicon not found
-        return '', 204
-
 @app.route('/api/devices/<device_id>/test', methods=['POST'])
 def test_device_connection(device_id):
     """Test device connection"""
@@ -373,82 +570,6 @@ def delete_device(device_id):
         return jsonify({'success': success})
     except Exception as e:
         logger.error(f"Error deleting device: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/config/templates', methods=['GET'])
-def get_config_templates():
-    """Get configuration templates"""
-    try:
-        templates = config_manager.get_config_templates()
-        return jsonify(templates)
-    except Exception as e:
-        logger.error(f"Error getting templates: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/config/backups', methods=['GET'])
-def get_config_backups():
-    """Get configuration backups"""
-    try:
-        # Sample backup data until method is implemented
-        backups = [
-            {
-                'id': '1',
-                'device_name': 'Router-01',
-                'timestamp': '2025-07-30T10:00:00Z',
-                'size': '15KB'
-            },
-            {
-                'id': '2', 
-                'device_name': 'Switch-01',
-                'timestamp': '2025-07-30T09:30:00Z',
-                'size': '22KB'
-            }
-        ]
-        return jsonify(backups)
-    except Exception as e:
-        logger.error(f"Error getting backups: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/config/changes', methods=['GET'])
-def get_config_changes():
-    """Get configuration changes"""
-    try:
-        # Sample changes data until method is implemented
-        changes = [
-            {
-                'id': '1',
-                'device_name': 'Router-01',
-                'change_type': 'Interface Configuration',
-                'description': 'Updated GigabitEthernet0/1 IP address',
-                'timestamp': '2025-07-30T14:30:00Z'
-            }
-        ]
-        return jsonify(changes)
-    except Exception as e:
-        logger.error(f"Error getting changes: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/config/deploy', methods=['POST'])
-def deploy_configuration():
-    """Deploy configuration"""
-    try:
-        data = request.get_json()
-        # Simulate successful deployment
-        logger.info(f"Deploying configuration to device {data.get('device_id')}")
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error deploying configuration: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/config/backup-all', methods=['POST'])
-def backup_all_configs():
-    """Backup all device configurations"""
-    try:
-        # Simulate successful backup
-        logger.info("Backing up all device configurations")
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error backing up configurations: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/security/stats', methods=['GET'])
@@ -896,6 +1017,285 @@ def create_network_profile():
         return jsonify(result)
     else:
         return jsonify({'error': 'Catalyst Center not available'})
+
+@app.route('/static/js/configuration.js')
+def serve_configuration_js():
+    """Serve configuration JavaScript file"""
+    js_content = '''
+/* Configuration Management JavaScript */
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎨 Configuration page loaded');
+    
+    // Load initial data
+    loadDevices();
+    loadTemplates();
+    loadBackups();
+});
+
+// Load devices for configuration
+function loadDevices() {
+    fetch('/api/configuration/devices')
+        .then(response => response.json())
+        .then(data => {
+            const deviceList = document.getElementById('deviceList');
+            
+            if (data.devices && data.devices.length > 0) {
+                deviceList.innerHTML = data.devices.map(device => `
+                    <div class="list-group-item list-group-item-action" onclick="selectDevice('${device.id}')">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${device.name}</h6>
+                            <small class="badge ${device.status === 'online' ? 'bg-success' : 'bg-danger'}">${device.status}</small>
+                        </div>
+                        <p class="mb-1">${device.ip}</p>
+                        <small>${device.type}</small>
+                    </div>
+                `).join('');
+            } else {
+                deviceList.innerHTML = '<p class="text-muted">No devices found</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading devices:', error);
+            document.getElementById('deviceList').innerHTML = '<p class="text-danger">Error loading devices</p>';
+        });
+}
+
+// Select device and load configuration
+function selectDevice(deviceId) {
+    console.log(`📱 Loading config for device: ${deviceId}`);
+    
+    fetch(`/api/configuration/device/${deviceId}/config`)
+        .then(response => response.json())
+        .then(data => {
+            const configDisplay = document.getElementById('configDisplay');
+            
+            if (data.error) {
+                configDisplay.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                return;
+            }
+            
+            configDisplay.innerHTML = `
+                <div class="mb-3">
+                    <h6>${data.device_name || 'Device Configuration'}</h6>
+                    <small class="text-muted">Last updated: ${data.last_updated || 'Unknown'}</small>
+                </div>
+                <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;"><code>${data.config_data}</code></pre>
+            `;
+            
+            // Store current device for backup/download
+            window.currentDevice = { id: deviceId, config: data };
+        })
+        .catch(error => {
+            console.error('Error loading configuration:', error);
+            document.getElementById('configDisplay').innerHTML = '<div class="alert alert-danger">Error loading configuration</div>';
+        });
+}
+
+// Load templates
+function loadTemplates() {
+    fetch('/api/configuration/templates')
+        .then(response => response.json())
+        .then(data => {
+            const templatesList = document.getElementById('templatesList');
+            
+            if (data.templates && data.templates.length > 0) {
+                templatesList.innerHTML = data.templates.map(template => `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <h6 class="mb-0">${template.name}</h6>
+                                <span class="badge bg-primary">${template.device_type}</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">${template.description || 'No description'}</p>
+                                <small class="text-muted">Created: ${new Date(template.created_at).toLocaleDateString()}</small>
+                            </div>
+                            <div class="card-footer">
+                                <button class="btn btn-sm btn-primary me-1" onclick="viewTemplate('${template.id}')">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${template.id}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                templatesList.innerHTML = '<div class="col-12"><p class="text-muted">No templates found</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading templates:', error);
+            document.getElementById('templatesList').innerHTML = '<div class="col-12"><p class="text-danger">Error loading templates</p></div>';
+        });
+}
+
+// Load backups
+function loadBackups() {
+    fetch('/api/configuration/backups')
+        .then(response => response.json())
+        .then(data => {
+            const backupsList = document.getElementById('backupsList');
+            
+            if (data.backups && data.backups.length > 0) {
+                backupsList.innerHTML = data.backups.map(backup => `
+                    <tr>
+                        <td>${backup.device_name || 'Unknown Device'}</td>
+                        <td>${new Date(backup.backup_timestamp).toLocaleString()}</td>
+                        <td>${Math.round(backup.config_data.length / 1024)}KB</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="restoreBackup('${backup.id}')">
+                                <i class="fas fa-undo"></i> Restore
+                            </button>
+                            <button class="btn btn-sm btn-info" onclick="downloadBackup('${backup.id}')">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                backupsList.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No backups found</td></tr>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading backups:', error);
+            document.getElementById('backupsList').innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading backups</td></tr>';
+        });
+}
+
+// Create template
+function createTemplate() {
+    const formData = {
+        name: document.getElementById('templateName').value,
+        description: document.getElementById('templateDescription').value,
+        device_type: document.getElementById('deviceType').value,
+        config_data: document.getElementById('configData').value
+    };
+    
+    if (!formData.name || !formData.device_type || !formData.config_data) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    fetch('/api/configuration/templates', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Template created successfully!');
+            document.getElementById('templateForm').reset();
+            bootstrap.Modal.getInstance(document.getElementById('createTemplateModal')).hide();
+            loadTemplates();
+        } else {
+            alert('Error creating template: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error creating template:', error);
+        alert('Error creating template');
+    });
+}
+
+// Backup current configuration
+function backupCurrentConfig() {
+    if (!window.currentDevice) {
+        alert('Please select a device first');
+        return;
+    }
+    
+    fetch('/api/configuration/backup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            device_id: window.currentDevice.id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Configuration backed up successfully!');
+            loadBackups();
+        } else {
+            alert('Error backing up configuration: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error backing up configuration:', error);
+        alert('Error backing up configuration');
+    });
+}
+
+// Download configuration
+function downloadConfig() {
+    if (!window.currentDevice) {
+        alert('Please select a device first');
+        return;
+    }
+    
+    const config = window.currentDevice.config;
+    const blob = new Blob([config.config_data], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `${config.device_name || 'device'}_config.txt`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+// Delete template
+function deleteTemplate(templateId) {
+    if (!confirm('Are you sure you want to delete this template?')) {
+        return;
+    }
+    
+    fetch(`/api/configuration/templates/${templateId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Template deleted successfully!');
+            loadTemplates();
+        } else {
+            alert('Error deleting template: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting template:', error);
+        alert('Error deleting template');
+    });
+}
+
+// View template (placeholder)
+function viewTemplate(templateId) {
+    alert('Template viewer coming soon!');
+}
+
+// Restore backup (placeholder)
+function restoreBackup(backupId) {
+    alert('Backup restore coming soon!');
+}
+
+// Download backup (placeholder)
+function downloadBackup(backupId) {
+    alert('Backup download coming soon!');
+}
+'''
+    
+    from flask import Response
+    return Response(js_content, mimetype='application/javascript')
 
 def background_monitoring():
     """Background thread for continuous network monitoring"""

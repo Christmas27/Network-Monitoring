@@ -346,10 +346,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 4. **Push** to the branch: `git push origin feature/amazing-feature`
 5. **Open** a Pull Request
 
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 **Acknowledgments**
 
 - **Cisco DevNet** - For providing excellent sandbox environments
@@ -361,9 +357,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 **Contact & Support**
 
 - **Portfolio**: [Your Portfolio Website]
-- **LinkedIn**: [Your LinkedIn Profile]
-- **Email**: [your.email@example.com]
-- **GitHub**: [Your GitHub Profile]
+- **LinkedIn**: https://www.linkedin.com/in/christian-dimas-ramadhani-budiyono-45222a14b/
+- **Email**: christian.dimas78@gmail.com
+- **GitHub**: https://github.com/Christmas27
 
 ---
 

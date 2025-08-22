@@ -318,14 +318,24 @@ class Dashboard {
     }
 
     toggleTheme() {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-        
-        this.animateThemeIcon(newTheme);
-        this.showAlert(`Switched to ${newTheme === 'dark' ? 'Dark' : 'Light'} Mode`, 'info');
+        if (window.themeManager) {
+            window.themeManager.toggleTheme();
+        } else {
+            // Fallback method
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('dashboard-theme', newTheme);
+            
+            // Update icon
+            const themeIcon = document.querySelector('.theme-toggle i');
+            if (themeIcon) {
+                themeIcon.className = newTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+            
+            console.log(`Theme switched to: ${newTheme}`);
+        }
     }
 
     updateThemeIcon(theme) {
@@ -443,6 +453,15 @@ class Dashboard {
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     window.dashboard = new Dashboard();
+});
+
+// Ensure theme is properly initialized
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default theme to light if not set
+    if (!localStorage.getItem('dashboard-theme')) {
+        localStorage.setItem('dashboard-theme', 'light');
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
 });
 
 // Global functions for backward compatibility

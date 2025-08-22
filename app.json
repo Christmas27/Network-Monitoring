@@ -1,0 +1,52 @@
+{
+  "name": "Network Monitoring Dashboard",
+  "description": "A comprehensive network automation and monitoring dashboard built with Flask and Cisco DevNet APIs",
+  "repository": "https://github.com/Christmas27/Network-Monitoring",
+  "logo": "https://via.placeholder.com/120x120.png?text=NetDash",
+  "keywords": ["python", "flask", "networking", "cisco", "devnet", "monitoring"],
+  "website": "https://github.com/Christmas27/Network-Monitoring",
+  "stack": "container",
+  "env": {
+    "SECRET_KEY": {
+      "description": "A secret key for Flask session management",
+      "generator": "secret",
+      "required": true
+    },
+    "FLASK_ENV": {
+      "description": "Flask environment",
+      "value": "production",
+      "required": true
+    },
+    "PORT": {
+      "description": "Port for the web application",
+      "value": "5000",
+      "required": true
+    },
+    "CATALYST_CENTER_HOST": {
+      "description": "Cisco Catalyst Center hostname (optional)",
+      "required": false
+    },
+    "CATALYST_CENTER_USERNAME": {
+      "description": "Catalyst Center username (optional)",
+      "required": false
+    },
+    "CATALYST_CENTER_PASSWORD": {
+      "description": "Catalyst Center password (optional)",
+      "required": false
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    "heroku-postgresql:mini"
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}

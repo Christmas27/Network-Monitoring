@@ -1,0 +1,71 @@
+# Navigate to your project directory
+cd "d:\DevOps Project"
+
+# Start all services (web, redis, database)
+docker-compose up --build
+
+# Or start in background (detached mode)
+docker-compose up -d --build
+
+# View logs (if running in background)
+docker-compose logs -f web
+
+# Stop all services (preserves data)
+docker-compose stop
+
+# Stop and remove containers (removes containers but keeps images)
+docker-compose down
+
+# Stop, remove containers AND volumes (fresh start)
+docker-compose down -v
+
+# Stop, remove everything including images
+docker-compose down --rmi all -v
+
+# List running containers
+docker ps
+
+# Stop specific container by name
+docker stop my-dashboard
+
+# Stop specific container by ID
+docker stop <container-id>
+
+# Stop and remove container
+docker stop my-dashboard && docker rm my-dashboard
+
+# Force stop (if container won't stop)
+docker kill my-dashboard
+
+# List running containers
+docker ps
+
+# List all containers (including stopped)
+docker ps -a
+
+# List Docker images
+docker images
+
+# List Docker volumes
+docker volume ls
+
+# Check Docker Compose services
+docker-compose ps
+
+# Remove stopped containers
+docker container prune
+
+# Remove unused images
+docker image prune
+
+# Remove unused volumes
+docker volume prune
+
+# Remove everything unused (careful!)
+docker system prune -a
+
+# Remove specific image
+docker rmi network-dashboard
+
+# Remove specific volume
+docker volume rm <volume-name>

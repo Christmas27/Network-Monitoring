@@ -1,52 +1,182 @@
-# 🚀 Deployment Guide
+# 🚀 Cloud Deployment Guide
 
-## Quick Deployment Options
+This guide covers multiple deployment options for your Network Monitoring Dashboard.
 
-### 1. Local Development
+## 📋 Prerequisites
+
+- Docker installed
+- Git repository setup
+- Cloud provider account (Heroku, AWS, Azure, or GCP)
+
+## 🎯 Quick Deployment Options
+
+### 1. 🔮 Heroku (Recommended for Portfolio)
+
+**One-click deployment:**
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Christmas27/Network-Monitoring)
+
+**Manual deployment:**
 ```bash
-# Clone and setup
-git clone https://github.com/your-username/network-automation-dashboard.git
-cd network-automation-dashboard
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
+# Install Heroku CLI
+# Windows: https://devcenter.heroku.com/articles/heroku-cli
+# Mac: brew install heroku/brew/heroku
+# Linux: snap install --classic heroku
+
+# Login and deploy
+heroku login
+chmod +x deploy/deploy-heroku.sh
+./deploy/deploy-heroku.sh
 ```
 
-### 2. Docker Deployment
-```bash
-# Build and run
-docker build -t network-dashboard .
-docker run -p 5000:5000 network-dashboard
+**Environment Variables for Heroku:**
+- `SECRET_KEY`: Auto-generated secure key
+- `FLASK_ENV`: production
+- `CATALYST_CENTER_HOST`: (optional) Your Catalyst Center IP
+- `CATALYST_CENTER_USERNAME`: (optional) Your username
+- `CATALYST_CENTER_PASSWORD`: (optional) Your password
 
-# Or use docker-compose
-docker-compose up -d
+### 2. 🐳 Docker Hub + Cloud Run
+
+```bash
+# Build and push to Docker Hub
+docker build -f Dockerfile.production -t yourusername/network-dashboard:latest .
+docker push yourusername/network-dashboard:latest
+
+# Deploy to Google Cloud Run
+gcloud run deploy network-dashboard \
+  --image yourusername/network-dashboard:latest \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 5000
 ```
 
-### 3. Cloud Deployment (Heroku)
+### 3. ☁️ AWS ECS Fargate
+
 ```bash
-# Deploy to Heroku
-heroku create your-dashboard-name
-git push heroku main
-heroku open
+# Prerequisites: AWS CLI configured
+chmod +x deploy/deploy-aws.sh
+./deploy/deploy-aws.sh
 ```
 
-## Production Deployment
+### 4. 🔵 Azure Container Instances
 
-### Ubuntu/CentOS Server Setup
-
-#### 1. System Prerequisites
 ```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install dependencies
-sudo apt install python3 python3-pip python3-venv nginx postgresql redis-server -y
-
-# Create application user
-sudo useradd -m -s /bin/bash netdashboard
-sudo su - netdashboard
+# Deploy using Azure CLI
+az group create --name NetworkDashboard --location eastus
+az deployment group create \
+  --resource-group NetworkDashboard \
+  --template-file deploy/azure-container-instance.json \
+  --parameters secretKey="your-secret-key"
 ```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create `.env.production` with your values:
+
+```env
+# Required
+SECRET_KEY=your-super-secret-production-key
+FLASK_ENV=production
+PORT=5000
+
+# Optional - Cisco Integration
+CATALYST_CENTER_HOST=your-catalyst-center-ip
+CATALYST_CENTER_USERNAME=your-username
+CATALYST_CENTER_PASSWORD=your-password
+
+# Optional - External Database
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+```
+
+### Security Checklist
+
+- ✅ Change default SECRET_KEY
+- ✅ Use environment variables for credentials
+- ✅ Enable HTTPS in production
+- ✅ Configure firewall rules
+- ✅ Regular security updates
+
+## 📊 Monitoring & Maintenance
+
+### Health Checks
+- Health endpoint: `https://your-app.com/health`
+- Status codes: 200 (healthy), 500 (unhealthy)
+
+### Logs
+```bash
+# Heroku
+heroku logs --tail --app your-app-name
+
+# Docker
+docker logs container-name
+
+# AWS ECS
+aws logs get-log-events --log-group-name /ecs/network-dashboard
+```
+
+### Scaling
+```bash
+# Heroku
+heroku ps:scale web=2 --app your-app-name
+
+# AWS ECS
+aws ecs update-service --cluster cluster-name --service service-name --desired-count 2
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+1. **Port binding issues**
+   ```bash
+   # Ensure PORT env var is set
+   export PORT=5000
+   ```
+
+2. **Database connection**
+   ```bash
+   # Check database permissions
+   # Verify DATABASE_URL format
+   ```
+
+3. **Memory issues**
+   ```bash
+   # Increase container memory limits
+   # Optimize worker count
+   ```
+
+### Performance Optimization
+
+- Use `gunicorn` with 2-4 workers
+- Enable gzip compression
+- Implement caching for device data
+- Use CDN for static assets
+
+## 🎓 For Your Portfolio
+
+This deployment demonstrates:
+
+### Technical Skills
+- **DevOps**: Docker, CI/CD, Infrastructure as Code
+- **Cloud Platforms**: Multi-cloud deployment strategies
+- **Networking**: Cisco DevNet, SNMP, SSH automation
+- **Security**: Secure credential management, HTTPS
+
+### Best Practices
+- **12-Factor App**: Environment-based configuration
+- **Monitoring**: Health checks, logging, metrics
+- **Scalability**: Horizontal scaling capabilities
+- **Security**: Non-root containers, secret management
+
+### Resume Highlights
+- Built and deployed production-ready network monitoring application
+- Implemented CI/CD pipelines with GitHub Actions
+- Multi-cloud deployment experience (Heroku, AWS, Azure)
+- Cisco networking automation with DevNet APIs
+- Docker containerization and orchestration
 
 #### 2. Application Setup
 ```bash

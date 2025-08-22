@@ -39,6 +39,7 @@ instance/
 .env.local
 .env.production
 .env.development
+.env.railway
 
 # IDE
 .vscode/
@@ -205,3 +206,27 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Add these lines to ensure clean deployment
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.railway
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Railway
+.railway/
+
+# Deployment
+.dockerignore

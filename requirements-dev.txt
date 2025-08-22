@@ -1,0 +1,19 @@
+# Development and testing requirements
+# Install with: pip install -r requirements-dev.txt
+
+# Include production requirements
+-r requirements-cloud.txt
+
+# Testing frameworks
+pytest==7.4.0
+pytest-cov==4.1.0
+pytest-flask==1.2.0
+
+# Code quality
+flake8==6.0.0
+black==23.7.0
+isort==5.12.0
+
+# Development tools
+python-dotenv==1.0.0
+watchdog==3.0.0

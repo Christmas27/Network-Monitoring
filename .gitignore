@@ -27,6 +27,7 @@ MANIFEST
 venv/
 ENV/
 env/
+cloud_env/
 .env
 network_dashboard_env/
 

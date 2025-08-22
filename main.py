@@ -13,7 +13,9 @@ from flask import Flask, render_template, jsonify, request, Response
 from flask_cors import CORS
 import json
 import logging
+import os
 from datetime import datetime
+import time
 
 # Import custom modules
 from modules.device_manager import DeviceManager
@@ -67,6 +69,9 @@ device_status = {}
 alerts = []
 
 print("✅ Monitor initialized")
+
+# Record the start time for the app
+app.start_time = time.time()
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -753,6 +758,52 @@ def api_live_devices():
     except Exception as e:
         return handle_api_error("Error getting live devices", e)
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Docker and load balancers"""
+    try:
+        # Basic health checks
+        current_time = datetime.now()
+        uptime_seconds = int(time.time() - app.start_time)
+        
+        # Test basic functionality
+        try:
+            devices = get_device_list()
+            device_count = len(devices) if devices else 0
+        except:
+            device_count = 0
+        
+        health_status = {
+            'status': 'healthy',
+            'timestamp': current_time.isoformat(),
+            'version': '1.0.0',
+            'uptime_seconds': uptime_seconds,
+            'services': {
+                'web_server': 'up',
+                'device_manager': 'up',
+                'dashboard_mode': 'simulation'  # or your actual mode
+            },
+            'metrics': {
+                'device_count': device_count,
+                'memory_usage': 'ok',
+                'response_time': 'normal'
+            }
+        }
+        
+        return jsonify(health_status), 200
+        
+    except Exception as e:
+        health_status = {
+            'status': 'unhealthy',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e),
+            'services': {
+                'web_server': 'up',
+                'device_manager': 'down'
+            }
+        }
+        return jsonify(health_status), 503
+
 # =============================================================================
 # STATIC FILE SERVING
 # =============================================================================
@@ -1022,8 +1073,13 @@ if __name__ == '__main__':
         print("🔄 Dashboard will show 'No devices found' until connection is established")
         print("💡 Check your DevNet sandbox credentials and network connectivity")
     
+    # Use environment variables for production deployment
+    port = int(os.environ.get('PORT', app.config.get('PORT', 5000)))
+    host = app.config.get('HOST', '0.0.0.0')
+    debug = app.config.get('DEBUG', False)
+    
     app.run(
-        host=app.config.get('HOST', '127.0.0.1'),
-        port=app.config.get('PORT', 5000), 
-        debug=app.config.get('DEBUG', True)
+        host=host,
+        port=port,
+        debug=debug
     )

@@ -28,13 +28,22 @@ from modules.live_monitoring import LiveNetworkMonitor
 from modules.catalyst_center_integration import CatalystCenterManager
 
 # Configure logging
+log_handlers = [logging.StreamHandler()]
+
+# Try to add file handler, but don't fail if we can't create the logs directory
+try:
+    log_dir = 'logs'
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    log_handlers.append(logging.FileHandler('logs/network_dashboard.log'))
+except (OSError, PermissionError):
+    # If we can't create logs directory (e.g., in cloud environment), just use console
+    print("Warning: Could not create logs directory, using console logging only")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/network_dashboard.log'),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers
 )
 logger = logging.getLogger(__name__)
 

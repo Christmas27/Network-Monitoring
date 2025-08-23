@@ -1,5 +1,7 @@
 # 🌐 Network Automation Dashboard
 
+## 🚀 **[LIVE DEMO - Click Here!](https://network-monitoring-dashboard-uifb.onrender.com/)**
+
 A comprehensive web-based dashboard for network automation, monitoring, and management built with Flask and modern web technologies. **Features real Cisco DevNet sandbox integration** for hands-on network device management.
 
 ![Dashboard Preview](https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge)
@@ -16,6 +18,19 @@ A comprehensive web-based dashboard for network automation, monitoring, and mana
 - 🔒 **Enterprise Security** - Comprehensive security monitoring and scanning
 - ⚡ **Real-time Updates** - Live device status and performance metrics
 - 🏗️ **Professional Architecture** - Clean, maintainable, production-ready code
+
+## 🌟 **Try the Live Demo**
+
+**🔗 Access the application:** [https://network-monitoring-dashboard-uifb.onrender.com/](https://network-monitoring-dashboard-uifb.onrender.com/)
+
+### What you can explore:
+- 📊 **Dashboard** - Network overview with real-time metrics and device status
+- 🖧 **Device Management** - View and manage network devices  
+- 🗺️ **Network Topology** - Interactive network map visualization
+- ⚙️ **Configuration** - Device configuration templates and management
+- 🛡️ **Security** - Network security monitoring and vulnerability scanning
+
+> **Note:** The demo runs in simulation mode since DevNet sandbox credentials periodically change. This demonstrates the application's graceful handling of external API availability - a key production feature!
 
 ## 📸 **Screenshots**
 

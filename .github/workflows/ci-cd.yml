@@ -82,20 +82,16 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
-  deploy-to-heroku:
+  # Note: Deployment to Render happens automatically when main branch is updated
+  # This pipeline focuses on testing and validation
+  post-deployment-check:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Deploy to Heroku
-      uses: akhileshns/heroku-deploy@v3.12.14
-      with:
-        heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-        heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-        heroku_email: ${{ secrets.HEROKU_EMAIL }}
-        dockerfile_path: "./Dockerfile.production"
-        docker_build_args: |
-          PORT=5000
+    - name: Post-deployment notification
+      run: |
+        echo "✅ Code tested and validated"
+        echo "🚀 Render will automatically deploy from main branch"
+        echo "📊 Check your Render dashboard for deployment status"

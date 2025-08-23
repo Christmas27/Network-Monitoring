@@ -35,7 +35,7 @@ jobs:
     
     - name: Test with pytest
       run: |
-        pytest testing/ --cov=modules --cov-report=xml
+        pytest testing/ --cov=modules --cov-report=xml --tb=short -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

@@ -43,7 +43,23 @@ def test_api_devices_endpoint(client):
     response = client.get('/api/devices')
     assert response.status_code == 200
     data = response.get_json()
-    assert isinstance(data, list)
+    
+    # Check that the response is a dictionary with expected structure
+    assert isinstance(data, dict)
+    assert 'devices' in data
+    assert 'mode' in data
+    assert 'total' in data
+    assert 'timestamp' in data
+    assert 'source' in data
+    
+    # Check that devices is a list
+    assert isinstance(data['devices'], list)
+    
+    # Check that total matches the length of devices
+    assert data['total'] == len(data['devices'])
+    
+    # Check that mode is either 'simulation' or 'catalyst_center'
+    assert data['mode'] in ['simulation', 'catalyst_center']
 
 def test_static_files(client):
     """Test that static files are accessible"""

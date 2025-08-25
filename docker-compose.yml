@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Main Network Dashboard Application
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=0
+      - DATABASE_URL=sqlite:///app.db
+      - REDIS_URL=redis://redis:6379
+      - DEVNET_MODE=simulation
+    volumes:
+      # Mount source code for development (remove for production)
+      - .:/app
+      - /app/.venv  # Exclude virtual environment
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - netdashboard
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - netdashboard
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for production database (optional)
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: netdashboard
+      POSTGRES_USER: netdashboard
+      POSTGRES_PASSWORD: devpassword123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - netdashboard
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  netdashboard:
+    driver: bridge

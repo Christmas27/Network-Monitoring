@@ -26,6 +26,7 @@ from modules.config import ConfigurationManager
 from config.config import Config
 from modules.live_monitoring import LiveNetworkMonitor
 from modules.catalyst_center_integration import CatalystCenterManager
+from modules.ansible_manager_simple import AnsibleManager
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +51,10 @@ config_manager = ConfigManager()
 configuration_manager = ConfigurationManager()
 security_scanner = SecurityScanner()
 live_monitor = LiveNetworkMonitor()
+
+# Initialize Ansible automation (simplified mode)
+ansible_manager = AnsibleManager()
+ansible_manager.create_basic_playbooks()
 
 # Initialize Catalyst Center integration
 print("🚀 Initializing Network Dashboard...")
@@ -169,6 +174,18 @@ def security():
         return render_template('security.html', security_status=security_status)
     except Exception as e:
         return handle_api_error("Error loading security page", e)
+
+@app.route('/automation')
+def automation():
+    """Ansible automation page"""
+    try:
+        automation_status = ansible_manager.get_automation_status()
+        available_playbooks = ansible_manager.get_available_playbooks()
+        return render_template('automation.html', 
+                             automation_status=automation_status,
+                             playbooks=available_playbooks)
+    except Exception as e:
+        return handle_api_error("Error loading automation page", e)
 
 # =============================================================================
 # DEVICE API ENDPOINTS
@@ -367,6 +384,113 @@ def api_compare_configurations():
         return jsonify(comparison)
     except Exception as e:
         return handle_api_error("Error comparing configurations", e)
+
+# =============================================================================
+# AUTOMATION API ENDPOINTS
+# =============================================================================
+
+@app.route('/api/automation/status')
+def api_automation_status():
+    """Get automation system status"""
+    try:
+        status = ansible_manager.get_automation_status()
+        return jsonify(status)
+    except Exception as e:
+        return handle_api_error("Error getting automation status", e)
+
+@app.route('/api/automation/playbooks')
+def api_get_playbooks():
+    """Get available Ansible playbooks"""
+    try:
+        playbooks = ansible_manager.get_available_playbooks()
+        return jsonify({'playbooks': playbooks, 'count': len(playbooks)})
+    except Exception as e:
+        return handle_api_error("Error getting playbooks", e)
+
+@app.route('/api/automation/inventory')
+def api_generate_inventory():
+    """Generate Ansible inventory from current devices"""
+    try:
+        devices = get_device_list()
+        if not devices:
+            # If no real devices, create sample for demo
+            devices = [
+                {
+                    'id': 'demo-1',
+                    'hostname': 'demo-router1',
+                    'ip_address': '192.168.1.1',
+                    'device_type': 'cisco_ios',
+                    'vendor': 'cisco',
+                    'role': 'distribution'
+                },
+                {
+                    'id': 'demo-2',
+                    'hostname': 'demo-switch1',
+                    'ip_address': '192.168.1.2',
+                    'device_type': 'cisco_ios',
+                    'vendor': 'cisco',
+                    'role': 'access'
+                }
+            ]
+        
+        inventory = ansible_manager.generate_inventory(devices)
+        inventory_file = ansible_manager.save_inventory_file(inventory)
+        
+        return jsonify({
+            'inventory': inventory,
+            'inventory_file': inventory_file,
+            'device_count': len(devices),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return handle_api_error("Error generating inventory", e)
+
+@app.route('/api/automation/execute', methods=['POST'])
+def api_execute_playbook():
+    """Execute Ansible playbook"""
+    try:
+        data = request.get_json()
+        required_fields = ['playbook_name']
+        
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        playbook_name = data['playbook_name']
+        extra_vars = data.get('extra_vars', {})
+        limit = data.get('limit')
+        
+        # Generate inventory from current devices
+        devices = get_device_list()
+        if not devices:
+            # Use demo devices for testing
+            devices = [
+                {
+                    'id': 'demo-1',
+                    'hostname': 'demo-router1',
+                    'ip_address': '192.168.1.1',
+                    'device_type': 'cisco_ios',
+                    'vendor': 'cisco'
+                }
+            ]
+        
+        inventory = ansible_manager.generate_inventory(devices)
+        
+        # Execute playbook
+        result = ansible_manager.run_playbook(
+            playbook_name=playbook_name,
+            inventory=inventory,
+            extra_vars=extra_vars,
+            limit=limit
+        )
+        
+        return jsonify({
+            'success': True,
+            'execution_result': result,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return handle_api_error("Error executing playbook", e)
 
 # =============================================================================
 # SECURITY API ENDPOINTS

@@ -1,0 +1,16 @@
+- gather_facts: false
+  hosts: all
+  name: Network Device Connectivity Test
+  tasks:
+  - name: Test device connectivity
+    wait_for_connection:
+      timeout: 30
+  - ios_facts:
+      gather_subset:
+      - all
+    name: Gather device facts
+    when: ansible_network_os == 'ios'
+  - debug:
+      msg: Successfully connected to {{ inventory_hostname }} - {{ ansible_net_version
+        | default("Unknown version") }}
+    name: Display device information

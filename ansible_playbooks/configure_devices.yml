@@ -1,0 +1,17 @@
+- gather_facts: false
+  hosts: all
+  name: Network Device Configuration Management
+  tasks:
+  - ios_config:
+      lines: '{{ config_commands }}'
+    name: Apply basic configuration
+    when: ansible_network_os == 'ios'
+  - ios_config:
+      save_when: always
+    name: Save configuration
+    when: ansible_network_os == 'ios'
+  vars:
+    config_commands:
+    - hostname {{ inventory_hostname }}
+    - ip domain-name example.com
+    - ntp server 8.8.8.8

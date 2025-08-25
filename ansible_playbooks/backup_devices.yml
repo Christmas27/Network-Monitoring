@@ -1,0 +1,14 @@
+- gather_facts: false
+  hosts: all
+  name: Network Device Configuration Backup
+  tasks:
+  - ios_config:
+      backup: true
+      backup_options:
+        dir_path: ./backups/
+        filename: '{{ inventory_hostname }}_{{ ansible_date_time.date }}.cfg'
+    name: Backup device configuration
+    when: ansible_network_os == 'ios'
+  - debug:
+      msg: Configuration backed up for {{ inventory_hostname }}
+    name: Display backup status

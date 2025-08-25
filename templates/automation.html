@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Automation - Network Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">
+        <i class="fas fa-robot me-2"></i>Network Automation
+    </h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" onclick="refreshAutomationData()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+        <button class="btn btn-success" onclick="generateInventory()">
+            <i class="fas fa-list me-1"></i>Generate Inventory
+        </button>
+    </div>
+</div>
+
+<!-- Status Row -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Automation Status
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="automationStatus">
+                            {{ automation_status.status | title }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-robot fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Available Playbooks
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="playbookCount">
+                            {{ automation_status.playbooks_count }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-code fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Last Execution
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="lastExecution">
+                            Never
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Ansible Status
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="ansibleStatus">
+                            {% if automation_status.ansible_available %}Ready{% else %}Development{% endif %}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fab fa-redhat fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Playbook Execution Panel -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-play me-2"></i>Execute Playbook
+                </h6>
+            </div>
+            <div class="card-body">
+                <form id="playbookExecutionForm">
+                    <div class="mb-3">
+                        <label for="playbookSelect" class="form-label">Select Playbook</label>
+                        <select class="form-select" id="playbookSelect" required>
+                            <option value="">Choose a playbook...</option>
+                            {% for playbook in playbooks %}
+                            <option value="{{ playbook.name }}">{{ playbook.name }} - {{ playbook.description }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="limitHosts" class="form-label">Limit to Hosts (optional)</label>
+                        <input type="text" class="form-control" id="limitHosts" 
+                               placeholder="e.g., router1,switch1 or routers">
+                        <div class="form-text">Leave empty to run on all devices</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="extraVars" class="form-label">Extra Variables (JSON, optional)</label>
+                        <textarea class="form-control" id="extraVars" rows="3" 
+                                  placeholder='{"variable": "value"}'></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-play me-1"></i>Execute Playbook
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Available Playbooks Panel -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-file-code me-2"></i>Available Playbooks
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="playbooksList">
+                    {% for playbook in playbooks %}
+                    <div class="card mb-2">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ playbook.name }}</h6>
+                                    <small class="text-muted">{{ playbook.description }}</small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="selectPlaybook('{{ playbook.name }}')">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Execution Results and Inventory -->
+<div class="row">
+    <!-- Execution Results -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-terminal me-2"></i>Execution Results
+                </h6>
+            </div>
+            <div class="card-body">
+                <div id="executionResults">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No playbook executions yet. Select a playbook and click execute to see results.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Generated Inventory -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-list me-2"></i>Device Inventory
+                </h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="generateInventory()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="inventoryDisplay">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Click "Generate Inventory" to see current device inventory.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Automation Status Alert -->
+{% if automation_status.status == 'simplified_mode' %}
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <strong><i class="fas fa-info-circle me-2"></i>Development Mode</strong>
+    {{ automation_status.message }}. Full Ansible integration will be available in the next update.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/automation.js') }}"></script>
+{% endblock %}

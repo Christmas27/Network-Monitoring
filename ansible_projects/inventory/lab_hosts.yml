@@ -1,0 +1,4 @@
+all:
+  children:
+    lab_devices:
+      hosts: {}

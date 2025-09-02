@@ -1,0 +1,158 @@
+#!/bin/bash
+# SSH Security Hardening Template
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "🔐 Starting SSH security hardening for {{ hostname }}"
+
+# Backup original SSH config
+echo "💾 Backing up original SSH configuration..."
+sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d_%H%M%S)
+
+# Create hardened SSH configuration
+echo "⚙️ Applying SSH security hardening..."
+sudo tee /etc/ssh/sshd_config > /dev/null <<EOF
+# SSH Hardened Configuration for {{ hostname }}
+# Generated: {{ timestamp }}
+# Environment: {{ environment }}
+
+# Basic Settings
+Port 22
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Security Settings
+PermitRootLogin no
+PasswordAuthentication yes
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Connection Settings
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+# Hardening
+MaxAuthTries 3
+MaxSessions 5
+ClientAliveInterval 300
+ClientAliveCountMax 2
+LoginGraceTime 60
+MaxStartups 10:30:60
+
+# Allowed Users/Groups
+AllowUsers {{ username | default('admin') }}
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# Disable unused features
+AllowAgentForwarding no
+AllowTcpForwarding no
+GatewayPorts no
+PermitTunnel no
+Banner /etc/issue.net
+EOF
+
+# Create security banner
+echo "📋 Creating security banner..."
+sudo tee /etc/issue.net > /dev/null <<EOF
+***************************************************************************
+                    {{ hostname }} - Authorized Access Only
+***************************************************************************
+
+WARNING: This system is for authorized users only. All activities are
+monitored and logged. Unauthorized access is strictly prohibited and
+will be prosecuted to the full extent of the law.
+
+Environment: {{ environment }}
+Server: {{ hostname }}
+Last Updated: {{ timestamp }}
+
+***************************************************************************
+EOF
+
+# Update system packages for security
+echo "📦 Updating system packages..."
+sudo apt update -y
+sudo apt upgrade -y
+
+# Install fail2ban for intrusion prevention
+echo "🛡️ Installing fail2ban..."
+sudo apt install -y fail2ban
+
+# Configure fail2ban for SSH
+echo "⚙️ Configuring fail2ban..."
+sudo tee /etc/fail2ban/jail.local > /dev/null <<EOF
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 3600
+EOF
+
+# Enable and start fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Configure automatic security updates
+echo "🔄 Configuring automatic security updates..."
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Set proper permissions
+echo "🔐 Setting secure permissions..."
+sudo chmod 600 /etc/ssh/sshd_config
+sudo chmod 644 /etc/issue.net
+
+# Test SSH configuration
+echo "🧪 Testing SSH configuration..."
+sudo sshd -t
+
+if [ $? -eq 0 ]; then
+    echo "✅ SSH configuration is valid"
+    
+    # Restart SSH service
+    echo "🔄 Restarting SSH service..."
+    sudo systemctl restart sshd
+    
+    # Show SSH status
+    echo "📋 SSH service status:"
+    sudo systemctl status sshd --no-pager -l
+    
+    # Show fail2ban status
+    echo "🛡️ Fail2ban status:"
+    sudo systemctl status fail2ban --no-pager -l
+    
+    echo "✅ SSH security hardening complete!"
+    echo "🔐 Security features enabled:"
+    echo "  - Root login disabled"
+    echo "  - Maximum auth tries: 3"
+    echo "  - Connection timeouts configured"
+    echo "  - Fail2ban intrusion prevention"
+    echo "  - Security banner displayed"
+    echo "  - Automatic security updates"
+else
+    echo "❌ SSH configuration test failed! Restoring backup..."
+    sudo cp /etc/ssh/sshd_config.backup.* /etc/ssh/sshd_config
+    echo "🔄 Restarting SSH with original configuration..."
+    sudo systemctl restart sshd
+fi
+
+echo "📊 Current SSH connections:"
+who

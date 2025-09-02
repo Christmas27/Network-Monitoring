@@ -1,0 +1,191 @@
+#!/bin/bash
+# Database Server Setup Template (PostgreSQL)
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "🗄️ Starting PostgreSQL database setup for {{ hostname }}"
+
+# Update system packages
+echo "📦 Updating system packages..."
+sudo apt update -y
+
+# Install PostgreSQL
+echo "🗄️ Installing PostgreSQL..."
+sudo apt install -y postgresql postgresql-contrib
+
+# Start and enable PostgreSQL
+echo "⚙️ Starting PostgreSQL service..."
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+
+# Configure PostgreSQL
+echo "🔧 Configuring PostgreSQL..."
+
+# Set database variables with defaults
+DB_NAME="{{ database_name | default('labdb') }}"
+DB_USER="{{ database_user | default('labuser') }}"
+DB_PASSWORD="{{ database_password | default('labpass123') }}"
+DB_PORT="{{ database_port | default('5432') }}"
+
+# Create database and user
+echo "👤 Creating database and user..."
+sudo -u postgres psql <<EOF
+CREATE DATABASE $DB_NAME;
+CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
+ALTER USER $DB_USER CREATEDB;
+\q
+EOF
+
+# Configure PostgreSQL for remote connections
+echo "🌐 Configuring remote access..."
+PG_VERSION=$(sudo -u postgres psql -c "SHOW server_version;" | grep PostgreSQL | awk '{print $2}' | cut -d. -f1)
+PG_CONFIG_DIR="/etc/postgresql/$PG_VERSION/main"
+
+# Update postgresql.conf
+sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" $PG_CONFIG_DIR/postgresql.conf
+sudo sed -i "s/#port = 5432/port = $DB_PORT/" $PG_CONFIG_DIR/postgresql.conf
+
+# Update pg_hba.conf for authentication
+echo "🔐 Configuring authentication..."
+sudo tee -a $PG_CONFIG_DIR/pg_hba.conf > /dev/null <<EOF
+
+# {{ hostname }} Lab Configuration
+host    all             all             10.0.0.0/8               md5
+host    all             all             172.16.0.0/12            md5
+host    all             all             192.168.0.0/16           md5
+host    all             all             127.0.0.1/32             md5
+EOF
+
+# Configure firewall
+if command -v ufw >/dev/null 2>&1; then
+    echo "🔥 Configuring firewall..."
+    sudo ufw allow $DB_PORT/tcp
+    sudo ufw allow ssh
+fi
+
+# Restart PostgreSQL to apply changes
+echo "🔄 Restarting PostgreSQL..."
+sudo systemctl restart postgresql
+
+# Create sample table and data
+echo "📊 Creating sample data..."
+sudo -u postgres psql -d $DB_NAME <<EOF
+-- Create a sample table for {{ hostname }}
+CREATE TABLE IF NOT EXISTS lab_devices (
+    id SERIAL PRIMARY KEY,
+    hostname VARCHAR(255) NOT NULL,
+    ip_address INET,
+    device_type VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'online',
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    environment VARCHAR(50) DEFAULT '{{ environment }}'
+);
+
+-- Insert sample data
+INSERT INTO lab_devices (hostname, ip_address, device_type, environment) 
+VALUES 
+    ('{{ hostname }}', '{{ server_ip }}', 'database_server', '{{ environment }}'),
+    ('lab-router1', '127.0.0.1', 'router', '{{ environment }}'),
+    ('lab-switch1', '127.0.0.1', 'switch', '{{ environment }}'),
+    ('lab-firewall1', '127.0.0.1', 'firewall', '{{ environment }}')
+ON CONFLICT DO NOTHING;
+
+-- Create monitoring view
+CREATE OR REPLACE VIEW device_summary AS 
+SELECT 
+    device_type,
+    COUNT(*) as device_count,
+    COUNT(CASE WHEN status = 'online' THEN 1 END) as online_count
+FROM lab_devices 
+GROUP BY device_type;
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_USER;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $DB_USER;
+
+\q
+EOF
+
+# Create database connection script
+echo "📋 Creating connection script..."
+sudo tee /opt/connect_db.sh > /dev/null <<EOF
+#!/bin/bash
+# Database connection script for {{ hostname }}
+echo "🗄️ Connecting to PostgreSQL database on {{ hostname }}"
+echo "Database: $DB_NAME"
+echo "User: $DB_USER"
+echo "Port: $DB_PORT"
+echo ""
+psql -h localhost -p $DB_PORT -U $DB_USER -d $DB_NAME
+EOF
+
+sudo chmod +x /opt/connect_db.sh
+
+# Create database info page
+echo "📄 Creating database info page..."
+sudo tee /var/www/html/db-info.html > /dev/null <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - Database Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #2c3e50; color: #ecf0f1; }
+        .container { background: #34495e; padding: 30px; border-radius: 10px; }
+        .info-box { background: #3498db; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .code { background: #2c3e50; padding: 10px; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ {{ hostname }} Database Server</h1>
+        <div class="info-box">
+            <h3>📊 Database Information</h3>
+            <p><strong>Database Name:</strong> $DB_NAME</p>
+            <p><strong>Database User:</strong> $DB_USER</p>
+            <p><strong>Port:</strong> $DB_PORT</p>
+            <p><strong>Server IP:</strong> {{ server_ip }}</p>
+            <p><strong>Environment:</strong> {{ environment }}</p>
+        </div>
+        <div class="info-box">
+            <h3>🔗 Connection Information</h3>
+            <div class="code">
+                <p>Host: {{ server_ip }}</p>
+                <p>Port: $DB_PORT</p>
+                <p>Database: $DB_NAME</p>
+                <p>Username: $DB_USER</p>
+                <p>Password: $DB_PASSWORD</p>
+            </div>
+        </div>
+        <div class="info-box">
+            <h3>🛠️ Quick Commands</h3>
+            <div class="code">
+                <p># Connect to database:<br>
+                sudo /opt/connect_db.sh</p>
+                <p># Check status:<br>
+                sudo systemctl status postgresql</p>
+                <p># View logs:<br>
+                sudo tail -f /var/log/postgresql/postgresql-*.log</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+
+# Show database status
+echo "📋 Database service status:"
+sudo systemctl status postgresql --no-pager -l
+
+# Show database info
+echo "🗄️ Database connection test:"
+sudo -u postgres psql -d $DB_NAME -c "SELECT version();"
+sudo -u postgres psql -d $DB_NAME -c "SELECT COUNT(*) as total_devices FROM lab_devices;"
+
+echo "✅ PostgreSQL database setup complete for {{ hostname }}!"
+echo "🗄️ Database: $DB_NAME"
+echo "👤 User: $DB_USER"
+echo "🔌 Port: $DB_PORT"
+echo "📋 Connection script: /opt/connect_db.sh"
+echo "🌐 Info page: http://{{ server_ip }}/db-info.html"

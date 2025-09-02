@@ -1,0 +1,69 @@
+---
+- name: Lab Device Connectivity and System Information
+  hosts: all
+  gather_facts: yes
+  vars:
+    ansible_user: admin
+    ansible_password: admin
+    ansible_connection: ssh
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  
+  tasks:
+    - name: Test basic connectivity
+      ping:
+      register: ping_result
+    
+    - name: Get system information
+      shell: |
+        echo "=== SYSTEM INFORMATION ==="
+        echo "Hostname: $(hostname)"
+        echo "Uptime: $(uptime)"
+        echo "Memory: $(free -h | grep Mem)"
+        echo "Disk: $(df -h / | tail -1)"
+        echo "Network Interfaces:"
+        ip addr show | grep -E '^[0-9]+:|inet ' | sed 's/^/  /'
+        echo "=== NETWORK STATUS ==="
+        echo "Active connections: $(netstat -an | grep ESTABLISHED | wc -l)"
+        echo "Listening ports: $(netstat -tln | grep LISTEN | wc -l)"
+      register: system_info
+      
+    - name: Simulate network device status
+      shell: |
+        echo "=== SIMULATED NETWORK DEVICE STATUS ==="
+        echo "Device Type: {{ inventory_hostname | regex_replace('lab-', '') | title }}"
+        echo "Management IP: $(hostname -I | awk '{print $1}')"
+        echo "Status: Online"
+        echo "CPU Usage: $((RANDOM % 40 + 20))%"
+        echo "Memory Usage: $((RANDOM % 30 + 40))%"
+        echo "Temperature: $((RANDOM % 20 + 35))°C"
+        echo "Power Status: Normal"
+        echo "=== INTERFACE STATUS ==="
+        for i in {1..4}; do
+          status=$([ $((RANDOM % 10)) -gt 2 ] && echo "Up" || echo "Down")
+          echo "  GigabitEthernet0/$i: $status"
+        done
+      register: device_status
+    
+    - name: Display results
+      debug:
+        msg: |
+          
+          ╔════════════════════════════════════════════════════════════════╗
+          ║                    {{ inventory_hostname | upper }}                    
+          ╚════════════════════════════════════════════════════════════════╝
+          
+          {{ system_info.stdout }}
+          
+          {{ device_status.stdout }}
+          
+    - name: Save results to file
+      copy:
+        content: |
+          Connectivity Test Results for {{ inventory_hostname }}
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          {{ system_info.stdout }}
+          
+          {{ device_status.stdout }}
+        dest: "/tmp/{{ inventory_hostname }}_status.txt"
+      ignore_errors: yes

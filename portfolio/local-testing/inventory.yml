@@ -1,0 +1,25 @@
+lab_devices:
+  hosts:
+    lab-router1:
+      ansible_host: 172.20.20.10
+      ansible_port: 2222
+      ansible_user: admin
+      ansible_password: admin
+      ansible_connection: ssh
+      device_type: router
+      management_ip: 172.20.20.10
+      location: "Local Docker Lab"
+      
+    lab-switch1:
+      ansible_host: 172.20.20.20
+      ansible_port: 2222
+      ansible_user: admin
+      ansible_password: admin
+      ansible_connection: ssh
+      device_type: switch
+      management_ip: 172.20.20.20
+      location: "Local Docker Lab"
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'

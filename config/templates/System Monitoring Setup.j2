@@ -1,0 +1,354 @@
+#!/bin/bash
+# System Monitoring Setup Template
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "📊 Starting system monitoring setup for {{ hostname }}"
+
+# Update system packages
+echo "📦 Updating system packages..."
+sudo apt update -y
+
+# Install monitoring tools
+echo "🛠️ Installing monitoring tools..."
+sudo apt install -y \
+    htop \
+    iotop \
+    nethogs \
+    iftop \
+    nmon \
+    sysstat \
+    curl \
+    jq \
+    python3 \
+    python3-pip
+
+# Install Python monitoring libraries
+echo "🐍 Installing Python monitoring libraries..."
+sudo pip3 install psutil flask
+
+# Create monitoring directory
+echo "📂 Creating monitoring directory..."
+sudo mkdir -p /opt/monitoring
+sudo mkdir -p /var/log/monitoring
+
+# Create system info script
+echo "📊 Creating system info script..."
+sudo tee /opt/monitoring/system_info.py > /dev/null <<'EOF'
+#!/usr/bin/env python3
+import psutil
+import json
+import time
+from datetime import datetime
+
+def get_system_info():
+    """Get comprehensive system information"""
+    
+    # CPU Information
+    cpu_percent = psutil.cpu_percent(interval=1)
+    cpu_count = psutil.cpu_count()
+    cpu_freq = psutil.cpu_freq()
+    
+    # Memory Information
+    memory = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    
+    # Disk Information
+    disk_usage = psutil.disk_usage('/')
+    disk_io = psutil.disk_io_counters()
+    
+    # Network Information
+    network_io = psutil.net_io_counters()
+    network_connections = len(psutil.net_connections())
+    
+    # Process Information
+    processes = len(psutil.pids())
+    
+    # System Load
+    load_avg = psutil.getloadavg()
+    
+    # Boot time
+    boot_time = datetime.fromtimestamp(psutil.boot_time())
+    
+    return {
+        'timestamp': datetime.now().isoformat(),
+        'hostname': '{{ hostname }}',
+        'environment': '{{ environment }}',
+        'cpu': {
+            'usage_percent': cpu_percent,
+            'count': cpu_count,
+            'frequency_mhz': cpu_freq.current if cpu_freq else None
+        },
+        'memory': {
+            'total_gb': round(memory.total / (1024**3), 2),
+            'available_gb': round(memory.available / (1024**3), 2),
+            'used_gb': round(memory.used / (1024**3), 2),
+            'percent': memory.percent
+        },
+        'swap': {
+            'total_gb': round(swap.total / (1024**3), 2),
+            'used_gb': round(swap.used / (1024**3), 2),
+            'percent': swap.percent
+        },
+        'disk': {
+            'total_gb': round(disk_usage.total / (1024**3), 2),
+            'used_gb': round(disk_usage.used / (1024**3), 2),
+            'free_gb': round(disk_usage.free / (1024**3), 2),
+            'percent': round((disk_usage.used / disk_usage.total) * 100, 1)
+        },
+        'network': {
+            'bytes_sent': network_io.bytes_sent,
+            'bytes_recv': network_io.bytes_recv,
+            'packets_sent': network_io.packets_sent,
+            'packets_recv': network_io.packets_recv,
+            'connections': network_connections
+        },
+        'system': {
+            'processes': processes,
+            'load_avg_1min': load_avg[0],
+            'load_avg_5min': load_avg[1],
+            'load_avg_15min': load_avg[2],
+            'boot_time': boot_time.isoformat(),
+            'uptime_hours': round((datetime.now() - boot_time).total_seconds() / 3600, 1)
+        }
+    }
+
+if __name__ == '__main__':
+    info = get_system_info()
+    print(json.dumps(info, indent=2))
+EOF
+
+sudo chmod +x /opt/monitoring/system_info.py
+
+# Create monitoring web service
+echo "🌐 Creating monitoring web service..."
+sudo tee /opt/monitoring/monitor_server.py > /dev/null <<'EOF'
+#!/usr/bin/env python3
+from flask import Flask, jsonify, render_template_string
+import subprocess
+import json
+import os
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - System Monitor</title>
+    <meta http-equiv="refresh" content="10">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0d1117; color: #c9d1d9; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .metric-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+        .metric-title { color: #58a6ff; font-size: 18px; margin-bottom: 15px; }
+        .metric-value { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .metric-label { color: #8b949e; font-size: 14px; }
+        .progress-bar { width: 100%; height: 20px; background: #21262d; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #238636, #f85149); border-radius: 10px; transition: width 0.3s; }
+        .status-good { color: #238636; }
+        .status-warning { color: #d29922; }
+        .status-critical { color: #f85149; }
+        .timestamp { text-align: center; color: #8b949e; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 {{ hostname }} System Monitor</h1>
+            <p>Environment: {{ environment }} | Auto-refresh every 10 seconds</p>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">🖥️ CPU Usage</div>
+                <div class="metric-value">{{ data.cpu.usage_percent }}%</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ data.cpu.usage_percent }}%"></div>
+                </div>
+                <div class="metric-label">{{ data.cpu.count }} cores @ {{ data.cpu.frequency_mhz or 'N/A' }} MHz</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">💾 Memory Usage</div>
+                <div class="metric-value">{{ data.memory.used_gb }}GB / {{ data.memory.total_gb }}GB</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ data.memory.percent }}%"></div>
+                </div>
+                <div class="metric-label">{{ data.memory.percent }}% used | {{ data.memory.available_gb }}GB available</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">💿 Disk Usage</div>
+                <div class="metric-value">{{ data.disk.used_gb }}GB / {{ data.disk.total_gb }}GB</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ data.disk.percent }}%"></div>
+                </div>
+                <div class="metric-label">{{ data.disk.percent }}% used | {{ data.disk.free_gb }}GB free</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">🌐 Network</div>
+                <div class="metric-value">{{ data.network.connections }} connections</div>
+                <div class="metric-label">
+                    📤 Sent: {{ (data.network.bytes_sent / 1024 / 1024) | round(1) }}MB<br>
+                    📥 Received: {{ (data.network.bytes_recv / 1024 / 1024) | round(1) }}MB
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">⚡ System Load</div>
+                <div class="metric-value">{{ data.system.load_avg_1min | round(2) }}</div>
+                <div class="metric-label">
+                    1min: {{ data.system.load_avg_1min | round(2) }}<br>
+                    5min: {{ data.system.load_avg_5min | round(2) }}<br>
+                    15min: {{ data.system.load_avg_15min | round(2) }}
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">🔄 System Info</div>
+                <div class="metric-value">{{ data.system.uptime_hours }}h uptime</div>
+                <div class="metric-label">
+                    Processes: {{ data.system.processes }}<br>
+                    Boot time: {{ data.system.boot_time[:19] }}
+                </div>
+            </div>
+        </div>
+        
+        <div class="timestamp">
+            Last updated: {{ data.timestamp[:19] }}
+        </div>
+    </div>
+</body>
+</html>
+'''
+
+@app.route('/')
+def dashboard():
+    try:
+        result = subprocess.run(['/usr/bin/python3', '/opt/monitoring/system_info.py'], 
+                              capture_output=True, text=True)
+        data = json.loads(result.stdout)
+        return render_template_string(HTML_TEMPLATE, data=data, hostname='{{ hostname }}', environment='{{ environment }}')
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/metrics')
+def api_metrics():
+    try:
+        result = subprocess.run(['/usr/bin/python3', '/opt/monitoring/system_info.py'], 
+                              capture_output=True, text=True)
+        data = json.loads(result.stdout)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port={{ monitoring_port | default('5000') }}, debug=False)
+EOF
+
+sudo chmod +x /opt/monitoring/monitor_server.py
+
+# Create systemd service for monitoring
+echo "⚙️ Creating monitoring service..."
+sudo tee /etc/systemd/system/system-monitor.service > /dev/null <<EOF
+[Unit]
+Description={{ hostname }} System Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/monitoring
+ExecStart=/usr/bin/python3 /opt/monitoring/monitor_server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start monitoring service
+echo "🚀 Starting monitoring service..."
+sudo systemctl daemon-reload
+sudo systemctl enable system-monitor
+sudo systemctl start system-monitor
+
+# Create log rotation for monitoring
+echo "📝 Setting up log rotation..."
+sudo tee /etc/logrotate.d/monitoring > /dev/null <<EOF
+/var/log/monitoring/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+}
+EOF
+
+# Configure firewall
+if command -v ufw >/dev/null 2>&1; then
+    echo "🔥 Configuring firewall..."
+    sudo ufw allow {{ monitoring_port | default('5000') }}/tcp
+    sudo ufw allow ssh
+fi
+
+# Create monitoring commands script
+echo "📋 Creating monitoring commands..."
+sudo tee /opt/monitoring/commands.sh > /dev/null <<EOF
+#!/bin/bash
+# Quick monitoring commands for {{ hostname }}
+
+echo "=== {{ hostname }} System Monitoring Commands ==="
+echo ""
+
+echo "📊 System Overview:"
+echo "python3 /opt/monitoring/system_info.py"
+echo ""
+
+echo "🖥️ Process Monitor:"
+echo "htop"
+echo ""
+
+echo "💿 Disk I/O:"
+echo "iotop"
+echo ""
+
+echo "🌐 Network Monitor:"
+echo "nethogs"
+echo ""
+
+echo "📈 System Stats:"
+echo "nmon"
+echo ""
+
+echo "📊 Web Dashboard:"
+echo "http://{{ server_ip }}:{{ monitoring_port | default('5000') }}"
+echo ""
+
+echo "📋 API Endpoint:"
+echo "curl http://{{ server_ip }}:{{ monitoring_port | default('5000') }}/api/metrics"
+EOF
+
+sudo chmod +x /opt/monitoring/commands.sh
+
+# Test monitoring service
+echo "🧪 Testing monitoring service..."
+sleep 5
+sudo systemctl status system-monitor --no-pager -l
+
+# Show service info
+echo "📋 Monitoring service status:"
+curl -s http://localhost:{{ monitoring_port | default('5000') }}/api/metrics | python3 -m json.tool | head -20
+
+echo "✅ System monitoring setup complete for {{ hostname }}!"
+echo "📊 Web Dashboard: http://{{ server_ip }}:{{ monitoring_port | default('5000') }}"
+echo "📋 API Endpoint: http://{{ server_ip }}:{{ monitoring_port | default('5000') }}/api/metrics"
+echo "🛠️ Commands: /opt/monitoring/commands.sh"
+echo "📊 Manual check: python3 /opt/monitoring/system_info.py"

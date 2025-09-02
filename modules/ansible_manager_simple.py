@@ -177,14 +177,22 @@ class AnsibleManager:
                 
                 # Try to extract description from playbook
                 try:
-                    with open(playbook_file, 'r') as f:
+                    with open(playbook_file, 'r', encoding='utf-8') as f:
                         content = yaml.safe_load(f)
                         if isinstance(content, list) and len(content) > 0:
+                            # Standard Ansible playbook format
                             playbook_info['description'] = content[0].get('name', 'No description')
+                        elif isinstance(content, dict):
+                            # Single play format
+                            playbook_info['description'] = content.get('name', 'No description')
                         else:
-                            playbook_info['description'] = 'No description available'
-                except:
-                    playbook_info['description'] = 'Error reading playbook'
+                            playbook_info['description'] = 'Valid playbook file'
+                except yaml.YAMLError as e:
+                    playbook_info['description'] = f'YAML parsing error: {str(e)[:50]}...'
+                except UnicodeDecodeError:
+                    playbook_info['description'] = 'File encoding error'
+                except Exception as e:
+                    playbook_info['description'] = f'Error reading: {str(e)[:50]}...'
                 
                 playbooks.append(playbook_info)
             

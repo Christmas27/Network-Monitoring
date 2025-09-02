@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Your Streamlit Dashboard
+  dashboard:
+    build: 
+      context: ../../.
+      dockerfile: Dockerfile
+    ports:
+      - "8503:8503"
+    environment:
+      - PYTHONPATH=/app
+      - ENV=local_testing
+      - LAB_MODE=true
+    volumes:
+      - ../../data:/app/data
+      - ../../logs:/app/logs
+    depends_on:
+      - mock-device1
+      - mock-device2
+    networks:
+      - lab-network
+
+  # Mock Network Device 1 (SSH-enabled container)
+  mock-device1:
+    image: linuxserver/openssh-server:latest
+    container_name: lab-router1
+    hostname: lab-router1
+    ports:
+      - "2221:2222"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SUDO_ACCESS=true
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=admin
+      - USER_NAME=admin
+    networks:
+      lab-network:
+        ipv4_address: 172.20.20.10
+
+  # Mock Network Device 2
+  mock-device2:
+    image: linuxserver/openssh-server:latest
+    container_name: lab-switch1
+    hostname: lab-switch1
+    ports:
+      - "2222:2222"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - SUDO_ACCESS=true
+      - PASSWORD_ACCESS=true
+      - USER_PASSWORD=admin
+      - USER_NAME=admin
+    networks:
+      lab-network:
+        ipv4_address: 172.20.20.20
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - lab-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    networks:
+      - lab-network
+
+networks:
+  lab-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.20.0/24

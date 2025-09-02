@@ -1,0 +1,21 @@
+lab_devices:
+  routers:
+  - ip: 192.168.100.10
+    location: Lab Rack 1
+    name: lab-r1
+    password: admin
+    type: cisco_ios
+    username: admin
+  - ip: 192.168.100.11
+    location: Lab Rack 1
+    name: lab-r2
+    password: admin
+    type: cisco_ios
+    username: admin
+  switches:
+  - ip: 192.168.100.20
+    location: Lab Rack 1
+    name: lab-sw1
+    password: admin
+    type: cisco_ios
+    username: admin

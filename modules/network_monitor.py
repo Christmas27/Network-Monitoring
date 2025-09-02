@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Network Monitor Module - Clean Version
+Network Monitor Module - Real Lab Implementation
 
 Provides real-time monitoring, health checks, and alerting for network devices.
+Enhanced with Docker container monitoring and SSH performance tracking.
 """
 
 import json
 import logging
 import time
 import threading
-from datetime import datetime
-from typing import Dict, List, Optional
+import subprocess
+import docker
+import psutil
+import paramiko
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 import sqlite3
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,15 +35,28 @@ class Alert:
     timestamp: datetime
     acknowledged: bool = False
 
+@dataclass  
+class DeviceMetrics:
+    """Device performance metrics"""
+    device_id: str
+    timestamp: datetime
+    cpu_usage: float
+    memory_usage: float
+    disk_usage: float
+    network_latency: float
+    ssh_response_time: float
+    status: str
+
 class NetworkMonitor:
     """
-    Network monitoring and health check system
+    Network monitoring and health check system with real Docker lab integration
     
     Features:
-    - Real-time device status monitoring
-    - Performance metrics collection
+    - Real-time Docker container monitoring
+    - SSH performance metrics
+    - Network latency tracking
     - Alerting system
-    - Network topology discovery
+    - Historical data collection
     """
     
     def __init__(self, config_file: str = "config.json"):
@@ -48,6 +66,14 @@ class NetworkMonitor:
         self.metrics_cache = {}
         self.monitoring_active = False
         self.monitor_thread = None
+        
+        # Initialize Docker client
+        try:
+            self.docker_client = docker.from_env()
+            logger.info("🐳 Docker client initialized for container monitoring")
+        except Exception as e:
+            logger.warning(f"⚠️ Docker client not available: {e}")
+            self.docker_client = None
         self._init_database()
         
     def _load_config(self, config_file: str) -> Dict:
@@ -72,39 +98,306 @@ class NetworkMonitor:
         }
     
     def _init_database(self):
-        """Initialize monitoring database"""
+        """Initialize enhanced monitoring database with real metrics support"""
         import os
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
         with sqlite3.connect(self.db_path) as conn:
-            # Device status history
+            # Enhanced device metrics table
             conn.execute('''
-                CREATE TABLE IF NOT EXISTS device_status (
+                CREATE TABLE IF NOT EXISTS device_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     device_id TEXT NOT NULL,
+                    container_id TEXT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT NOT NULL,
-                    response_time REAL,
                     cpu_usage REAL,
-                    memory_usage REAL
+                    memory_usage REAL,
+                    memory_limit REAL,
+                    disk_usage REAL,
+                    network_rx_bytes REAL,
+                    network_tx_bytes REAL,
+                    ssh_response_time REAL,
+                    ping_response_time REAL,
+                    uptime_seconds REAL
                 )
             ''')
             
-            # Alerts history
+            # Network performance history
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS network_performance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    device_id TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    latency_ms REAL,
+                    packet_loss REAL,
+                    bandwidth_mbps REAL,
+                    jitter_ms REAL
+                )
+            ''')
+            
+            # Enhanced alerts table
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS alerts (
-                    id TEXT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     device_id TEXT NOT NULL,
                     alert_type TEXT NOT NULL,
                     severity TEXT NOT NULL,
                     message TEXT NOT NULL,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    acknowledged BOOLEAN DEFAULT FALSE
+                    acknowledged BOOLEAN DEFAULT FALSE,
+                    resolved_timestamp TIMESTAMP NULL
+                )
+            ''')
+            
+            # System health summary
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS system_health (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    total_devices INTEGER,
+                    active_devices INTEGER,
+                    critical_alerts INTEGER,
+                    warning_alerts INTEGER,
+                    average_response_time REAL,
+                    system_load REAL
                 )
             ''')
             
             conn.commit()
-            logger.info("Monitoring database initialized")
+            logger.info("📊 Enhanced monitoring database initialized")
+    
+    def get_lab_containers(self) -> List[Dict[str, Any]]:
+        """Get information about lab containers"""
+        containers = []
+        if not self.docker_client:
+            return containers
+            
+        try:
+            for container in self.docker_client.containers.list():
+                if container.name.startswith('lab-'):
+                    container_info = {
+                        'id': container.id,
+                        'name': container.name,
+                        'status': container.status,
+                        'created': container.attrs['Created'],
+                        'ports': container.ports
+                    }
+                    containers.append(container_info)
+        except Exception as e:
+            logger.error(f"❌ Error getting lab containers: {e}")
+            
+        return containers
+    
+    def get_container_metrics(self, container_name: str) -> Dict[str, Any]:
+        """Get real-time metrics from Docker container"""
+        if not self.docker_client:
+            return {'status': 'docker_unavailable'}
+            
+        try:
+            container = self.docker_client.containers.get(container_name)
+            stats = container.stats(stream=False)
+            
+            # Calculate CPU usage - handle missing percpu_usage gracefully
+            try:
+                cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
+                           stats['precpu_stats']['cpu_usage']['total_usage']
+                system_delta = stats['cpu_stats']['system_cpu_usage'] - \
+                              stats['precpu_stats']['system_cpu_usage']
+                
+                # Get number of CPUs - fallback if percpu_usage not available
+                num_cpus = len(stats['cpu_stats']['cpu_usage'].get('percpu_usage', [1]))
+                if num_cpus == 0:
+                    num_cpus = 1  # Fallback to 1 CPU
+                
+                cpu_usage = (cpu_delta / system_delta) * num_cpus * 100.0 if system_delta > 0 else 0
+            except (KeyError, ZeroDivisionError):
+                cpu_usage = 0
+            
+            # Calculate memory usage
+            try:
+                memory_usage = stats['memory_stats']['usage']
+                memory_limit = stats['memory_stats']['limit']
+                memory_percent = (memory_usage / memory_limit) * 100.0
+            except (KeyError, ZeroDivisionError):
+                memory_usage = 0
+                memory_limit = 0
+                memory_percent = 0
+            
+            # Network I/O
+            networks = stats.get('networks', {})
+            rx_bytes = sum(net.get('rx_bytes', 0) for net in networks.values())
+            tx_bytes = sum(net.get('tx_bytes', 0) for net in networks.values())
+            
+            # Container uptime
+            try:
+                created_time = container.attrs['Created']
+                # Handle different datetime formats
+                if 'T' in created_time:
+                    if created_time.endswith('Z'):
+                        created_time = created_time.replace('Z', '+00:00')
+                    created_dt = datetime.fromisoformat(created_time.replace('T', ' '))
+                else:
+                    created_dt = datetime.fromisoformat(created_time)
+                uptime = (datetime.now() - created_dt.replace(tzinfo=None)).total_seconds()
+            except:
+                uptime = 0
+            
+            metrics = {
+                'status': container.status,
+                'cpu_usage': round(max(0, cpu_usage), 2),
+                'memory_usage': round(max(0, memory_percent), 2),
+                'memory_bytes': memory_usage,
+                'memory_limit': memory_limit,
+                'network_rx_bytes': rx_bytes,
+                'network_tx_bytes': tx_bytes,
+                'uptime': uptime
+            }
+            
+            return metrics
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting metrics for {container_name}: {e}")
+            return {'status': 'error', 'message': str(e)}
+    
+    def test_ssh_response_time(self, host: str, port: int = 22, username: str = 'admin', password: str = 'admin') -> Dict[str, Any]:
+        """Test SSH connection response time"""
+        start_time = time.time()
+        
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            ssh.connect(
+                hostname=host,
+                port=port,
+                username=username,
+                password=password,
+                timeout=5,
+                auth_timeout=3
+            )
+            
+            # Test command execution time
+            exec_start = time.time()
+            stdin, stdout, stderr = ssh.exec_command('echo "test"')
+            stdout.read()
+            exec_time = (time.time() - exec_start) * 1000
+            
+            ssh.close()
+            
+            total_time = (time.time() - start_time) * 1000
+            
+            return {
+                'status': 'success',
+                'connection_time_ms': round(total_time, 2),
+                'command_execution_time_ms': round(exec_time, 2),
+                'message': 'SSH connection successful'
+            }
+            
+        except paramiko.AuthenticationException:
+            # Auth failed but connection works
+            total_time = (time.time() - start_time) * 1000
+            return {
+                'status': 'auth_failed',
+                'connection_time_ms': round(total_time, 2),
+                'message': 'SSH responding (auth expected to fail in lab)'
+            }
+        except Exception as e:
+            total_time = (time.time() - start_time) * 1000
+            return {
+                'status': 'failed',
+                'connection_time_ms': round(total_time, 2),
+                'message': f'SSH failed: {str(e)}'
+            }
+    
+    def collect_device_metrics(self, device_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Collect comprehensive metrics for a lab device"""
+        device_name = device_info.get('hostname', device_info.get('name', 'unknown'))
+        ip_address = device_info.get('ip_address', '')
+        
+        # Parse host and port
+        if ':' in ip_address:
+            host, port = ip_address.split(':')
+            port = int(port)
+        else:
+            host = ip_address
+            port = 22
+        
+        metrics = {
+            'device_id': device_name,
+            'timestamp': datetime.now(),
+            'status': 'unknown'
+        }
+        
+        # Get container metrics if it's a lab device
+        if device_name.startswith('lab-'):
+            container_metrics = self.get_container_metrics(device_name)
+            metrics.update(container_metrics)
+        
+        # Test SSH response time
+        ssh_metrics = self.test_ssh_response_time(host, port)
+        metrics['ssh_response_time'] = ssh_metrics.get('connection_time_ms', 0)
+        metrics['ssh_status'] = ssh_metrics.get('status', 'failed')
+        
+        # Test ping response time
+        ping_time = self.get_device_response_time(host)
+        metrics['ping_response_time'] = ping_time if ping_time else 0
+        
+        # Determine overall status
+        if ssh_metrics.get('status') in ['success', 'auth_failed']:
+            metrics['status'] = 'active'
+        else:
+            metrics['status'] = 'inactive'
+        
+        return metrics
+    
+    def store_metrics(self, metrics: Dict[str, Any]):
+        """Store metrics in database"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT INTO device_metrics (
+                        device_id, timestamp, status, cpu_usage, memory_usage,
+                        ssh_response_time, ping_response_time
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    metrics.get('device_id'),
+                    metrics.get('timestamp'),
+                    metrics.get('status'),
+                    metrics.get('cpu_usage'),
+                    metrics.get('memory_usage'),
+                    metrics.get('ssh_response_time'),
+                    metrics.get('ping_response_time')
+                ))
+                conn.commit()
+        except Exception as e:
+            logger.error(f"❌ Error storing metrics: {e}")
+    
+    def get_recent_metrics(self, device_id: str = None, hours: int = 24) -> List[Dict[str, Any]]:
+        """Get recent metrics for devices"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                if device_id:
+                    query = '''
+                        SELECT * FROM device_metrics 
+                        WHERE device_id = ? AND timestamp > datetime('now', '-{} hours')
+                        ORDER BY timestamp DESC
+                    '''.format(hours)
+                    cursor = conn.execute(query, (device_id,))
+                else:
+                    query = '''
+                        SELECT * FROM device_metrics 
+                        WHERE timestamp > datetime('now', '-{} hours')
+                        ORDER BY timestamp DESC
+                    '''.format(hours)
+                    cursor = conn.execute(query)
+                
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting recent metrics: {e}")
+            return []
     
     def ping_device(self, ip_address: str) -> bool:
         """

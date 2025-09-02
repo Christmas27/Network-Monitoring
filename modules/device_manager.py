@@ -224,6 +224,36 @@ class DeviceManager:
                 return True
             return False
     
+    def update_device_status(self, device_id: str, status: str) -> bool:
+        """
+        Update device status in database
+        
+        Args:
+            device_id: Device ID
+            status: New status ('online', 'offline', 'pending', 'error')
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    'UPDATE devices SET status = ?, updated_at = ? WHERE id = ?',
+                    (status, datetime.now().isoformat(), device_id)
+                )
+                conn.commit()
+                
+                if cursor.rowcount > 0:
+                    logger.info(f"Updated device {device_id} status to: {status}")
+                    return True
+                else:
+                    logger.warning(f"Device not found for status update: {device_id}")
+                    return False
+                    
+        except sqlite3.Error as e:
+            logger.error(f"Database error updating device status: {e}")
+            return False
+    
     def connect_to_device(self, device_id: str) -> Optional[ConnectHandler]:
         """
         Establish SSH connection to device

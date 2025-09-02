@@ -1,0 +1,32 @@
+services:
+  api:
+    build: .
+    command: python main.py
+    environment:
+    - ENV=portfolio
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.api.rule=Host(`api.yourportfolio.com`)
+    ports:
+    - 5000:5000
+  dashboard:
+    build: .
+    environment:
+    - ENV=portfolio
+    - LAB_DEVICES=true
+    - DEMO_MODE=true
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.dashboard.rule=Host(`dashboard.yourportfolio.com`)
+    - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
+    ports:
+    - 8503:8503
+  reverse_proxy:
+    image: traefik:v2.9
+    ports:
+    - 80:80
+    - 443:443
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./traefik:/etc/traefik
+version: '3.8'

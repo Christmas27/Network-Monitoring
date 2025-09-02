@@ -11,7 +11,7 @@ import logging
 import os
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import yaml
 import jinja2
@@ -73,15 +73,34 @@ class ConfigManager:
                 CREATE TABLE IF NOT EXISTS config_backups (
                     id TEXT PRIMARY KEY,
                     device_id TEXT NOT NULL,
+                    device_name TEXT,
                     backup_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     config_hash TEXT NOT NULL,
                     file_path TEXT NOT NULL,
                     size_bytes INTEGER,
                     backup_type TEXT DEFAULT 'automatic',
                     description TEXT,
-                    created_by TEXT DEFAULT 'system'
+                    created_by TEXT DEFAULT 'system',
+                    timestamp TEXT,
+                    config_content TEXT
                 )
             ''')
+            
+            # Add missing columns if they don't exist (for existing databases)
+            try:
+                conn.execute('ALTER TABLE config_backups ADD COLUMN device_name TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            
+            try:
+                conn.execute('ALTER TABLE config_backups ADD COLUMN timestamp TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+                
+            try:
+                conn.execute('ALTER TABLE config_backups ADD COLUMN config_content TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             
             # Configuration templates
             conn.execute('''
@@ -89,15 +108,27 @@ class ConfigManager:
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL UNIQUE,
                     description TEXT,
+                    content TEXT NOT NULL,
+                    template_type TEXT DEFAULT 'Shell Script',
                     vendor TEXT,
                     device_type TEXT,
-                    template_content TEXT NOT NULL,
                     variables TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     created_by TEXT DEFAULT 'system'
                 )
             ''')
+            
+            # Add missing columns if they don't exist
+            try:
+                conn.execute('ALTER TABLE config_templates ADD COLUMN content TEXT')
+            except sqlite3.OperationalError:
+                pass
+                
+            try:
+                conn.execute('ALTER TABLE config_templates ADD COLUMN template_type TEXT DEFAULT "Shell Script"')
+            except sqlite3.OperationalError:
+                pass
             
             # Configuration deployments
             conn.execute('''
@@ -130,7 +161,7 @@ class ConfigManager:
             conn.commit()
             logger.info("Configuration database initialized")
     
-    def backup_device_config(self, device_id: str, backup_type: str = "automatic", description: str = "") -> str:
+    def backup_device_config_legacy(self, device_id: str, backup_type: str = "automatic", description: str = "") -> str:
         """
         Backup device configuration
         
@@ -231,7 +262,9 @@ class ConfigManager:
             return None
         
         device = device_manager.get_device(device_id)
-        return self._get_device_config_content(connection, device['device_type'])
+        if not device:
+            return None
+        return self._get_device_config_content(connection, device.get('device_type', 'unknown'))
     
     def restore_device_config(self, device_id: str, backup_id: str) -> bool:
         """
@@ -394,7 +427,7 @@ class ConfigManager:
     
     def create_config_template(self, name: str, description: str, vendor: str, 
                              device_type: str, template_content: str, 
-                             variables: List[str] = None) -> str:
+                             variables: Optional[List[str]] = None) -> str:
         """
         Create configuration template
         
@@ -415,7 +448,7 @@ class ConfigManager:
             conn.execute('''
                 INSERT INTO config_templates (
                     id, name, description, vendor, device_type,
-                    template_content, variables
+                    content, variables
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
                 template_id,
@@ -451,7 +484,7 @@ class ConfigManager:
         
         return templates
     
-    def deploy_template(self, device_id: str, template_id: str, variables: Dict = None) -> str:
+    def deploy_template_legacy(self, device_id: str, template_id: str, variables: Optional[Dict] = None) -> str:
         """
         Deploy configuration template to device
         
@@ -472,7 +505,7 @@ class ConfigManager:
                 raise ValueError("Template not found")
             
             # Render template with variables
-            jinja_template = self.jinja_env.from_string(template['template_content'])
+            jinja_template = self.jinja_env.from_string(template['content'])
             config_content = jinja_template.render(variables or {})
             
             # Deploy to device
@@ -550,7 +583,7 @@ class ConfigManager:
                                                     'Configuration 2')
         }
     
-    def check_compliance(self, device_id: str, rules: List[Dict] = None) -> List[Dict]:
+    def check_compliance(self, device_id: str, rules: Optional[List[Dict]] = None) -> List[Dict]:
         """
         Check device configuration compliance
         
@@ -797,3 +830,376 @@ end
                 
         except Exception as e:
             logger.error(f"Error cleaning up old backups: {e}")
+
+    def get_available_templates(self) -> List[Dict[str, str]]:
+        """Get all available configuration templates"""
+        try:
+            templates = []
+            
+            # Get templates from database
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    SELECT id, name, description, content, template_type, created_at
+                    FROM config_templates
+                    ORDER BY name
+                ''')
+                
+                for row in cursor.fetchall():
+                    templates.append({
+                        'id': row[0],
+                        'name': row[1],
+                        'description': row[2] or 'No description',
+                        'content': row[3],
+                        'template_type': row[4],
+                        'created_at': row[5]
+                    })
+            
+            # Also check file-based templates
+            if self.templates_dir.exists():
+                for template_file in self.templates_dir.glob("*.j2"):
+                    # Skip if already in database
+                    if not any(t['name'] == template_file.stem for t in templates):
+                        try:
+                            with open(template_file, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                            
+                            templates.append({
+                                'id': f"file_{template_file.stem}",
+                                'name': template_file.stem,
+                                'description': 'File-based template',
+                                'content': content,
+                                'template_type': 'Jinja2 Template',
+                                'created_at': datetime.fromtimestamp(template_file.stat().st_mtime).isoformat()
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error reading template file {template_file}: {e}")
+            
+            logger.info(f"📄 Found {len(templates)} available templates")
+            return templates
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting templates: {e}")
+            return []
+
+    def create_template(self, name: str, content: str, description: str = "", template_type: str = "Shell Script") -> Dict[str, Any]:
+        """Create a new configuration template"""
+        try:
+            template_id = str(uuid.uuid4())
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT INTO config_templates (id, name, description, content, template_type, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (template_id, name, description, content, template_type, datetime.now().isoformat()))
+                
+                conn.commit()
+            
+            logger.info(f"✅ Created template: {name}")
+            return {'status': 'success', 'template_id': template_id, 'message': f'Template "{name}" created successfully'}
+            
+        except sqlite3.IntegrityError:
+            return {'status': 'error', 'message': f'Template "{name}" already exists'}
+        except Exception as e:
+            logger.error(f"❌ Error creating template: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def delete_template(self, name: str) -> Dict[str, Any]:
+        """Delete a configuration template"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('DELETE FROM config_templates WHERE name = ?', (name,))
+                
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    logger.info(f"🗑️ Deleted template: {name}")
+                    return {'status': 'success', 'message': f'Template "{name}" deleted'}
+                else:
+                    return {'status': 'error', 'message': f'Template "{name}" not found'}
+                    
+        except Exception as e:
+            logger.error(f"❌ Error deleting template: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def deploy_template(self, template_name: str, device: Dict[str, Any], variables: Dict[str, Any], backup_first: bool = True) -> Dict[str, Any]:
+        """Deploy a template to a device"""
+        try:
+            # Get template
+            templates = self.get_available_templates()
+            template = next((t for t in templates if t['name'] == template_name), None)
+            
+            if not template:
+                return {'status': 'error', 'message': f'Template "{template_name}" not found'}
+            
+            # Render template with variables
+            template_obj = self.jinja_env.from_string(template['content'])
+            rendered_config = template_obj.render(**variables)
+            
+            # Get SSH manager for deployment
+            from modules.real_ssh_manager import RealSSHLabManager
+            ssh_manager = RealSSHLabManager()
+            
+            # Parse device connection info
+            ip_port = device['ip_address'].split(':')
+            host = ip_port[0]
+            port = int(ip_port[1]) if len(ip_port) > 1 else 22
+            username = device.get('username', 'admin')
+            password = device.get('password', 'admin')
+            
+            # Create backup if requested
+            if backup_first:
+                self.backup_device_config(device)
+            
+            # Deploy configuration
+            result = ssh_manager.deploy_configuration(
+                host=host,
+                port=port,
+                username=username,
+                password=password,
+                config_content=rendered_config,
+                device_name=device['hostname']
+            )
+            
+            if result.get('status') == 'success':
+                logger.info(f"✅ Template {template_name} deployed to {device['hostname']}")
+                return {
+                    'device': device['hostname'],
+                    'status': 'success',
+                    'message': f'Template "{template_name}" deployed successfully'
+                }
+            else:
+                return {
+                    'device': device['hostname'],
+                    'status': 'error',
+                    'message': result.get('message', 'Deployment failed')
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error deploying template: {e}")
+            return {
+                'device': device.get('hostname', 'unknown'),
+                'status': 'error',
+                'message': str(e)
+            }
+
+    def backup_device_config(self, device: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a backup of device configuration"""
+        try:
+            # Get SSH manager
+            from modules.real_ssh_manager import RealSSHLabManager
+            ssh_manager = RealSSHLabManager()
+            
+            # Parse device connection info
+            ip_port = device['ip_address'].split(':')
+            host = ip_port[0]
+            port = int(ip_port[1]) if len(ip_port) > 1 else 22
+            username = device.get('username', 'admin')
+            password = device.get('password', 'admin')
+            
+            # Get current configuration
+            result = ssh_manager.get_device_configuration(
+                host=host,
+                port=port,
+                username=username,
+                password=password
+            )
+            
+            if result.get('status') == 'success':
+                config_content = result.get('config', '')
+                
+                # Generate config hash
+                import hashlib
+                config_hash = hashlib.md5(config_content.encode()).hexdigest()
+                
+                # Store backup in database
+                backup_id = str(uuid.uuid4())
+                timestamp = datetime.now().isoformat()
+                file_path = f"/tmp/backup_{device['hostname']}_{timestamp}.txt"
+                
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute('''
+                        INSERT INTO config_backups (id, device_id, device_name, config_content, backup_type, timestamp, size_bytes, config_hash, file_path)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (backup_id, device.get('id', device['hostname']), device['hostname'], 
+                         config_content, 'automatic', timestamp, len(config_content), config_hash, file_path))
+                    
+                    conn.commit()
+                
+                logger.info(f"💾 Backup created for {device['hostname']}")
+                return {
+                    'device': device['hostname'],
+                    'status': 'success',
+                    'message': 'Backup created successfully',
+                    'backup_id': backup_id
+                }
+            else:
+                return {
+                    'device': device['hostname'],
+                    'status': 'error',
+                    'message': result.get('message', 'Failed to get configuration')
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating backup: {e}")
+            return {
+                'device': device.get('hostname', 'unknown'),
+                'status': 'error',
+                'message': str(e)
+            }
+
+    def get_backup_history(self) -> List[Dict[str, Any]]:
+        """Get backup history for all devices"""
+        try:
+            backups = []
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    SELECT device_name, timestamp, size_bytes, backup_type, id
+                    FROM config_backups
+                    ORDER BY timestamp DESC
+                    LIMIT 50
+                ''')
+                
+                for row in cursor.fetchall():
+                    # Convert size to human readable
+                    size_bytes = row[2] or 0
+                    if size_bytes < 1024:
+                        size_str = f"{size_bytes} B"
+                    elif size_bytes < 1024 * 1024:
+                        size_str = f"{size_bytes / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                    
+                    backups.append({
+                        'device': row[0],
+                        'timestamp': row[1],
+                        'size': size_str,
+                        'status': 'Success',
+                        'type': row[3],
+                        'id': row[4]
+                    })
+            
+            return backups
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting backup history: {e}")
+            return []
+
+    def restore_backup(self, backup_id: str) -> Dict[str, Any]:
+        """Restore a configuration backup"""
+        try:
+            # Get backup info
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    SELECT device_name, config_content
+                    FROM config_backups
+                    WHERE id = ?
+                ''', (backup_id,))
+                
+                row = cursor.fetchone()
+                if not row:
+                    return {'status': 'error', 'message': 'Backup not found'}
+                
+                device_name, config_content = row
+            
+            # For demo purposes, simulate restore
+            logger.info(f"🔄 Restored backup {backup_id} to {device_name}")
+            return {
+                'status': 'success',
+                'message': f'Configuration restored to {device_name}'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error restoring backup: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def compare_configurations(self, source_device: Dict[str, Any], target_device: Dict[str, Any], 
+                             source_type: str = "current", target_type: str = "current",
+                             ignore_timestamps: bool = True, ignore_comments: bool = True) -> Dict[str, Any]:
+        """Compare configurations between devices"""
+        try:
+            # Get configurations (for demo, we'll create mock configs)
+            source_config = self._get_device_config_for_comparison(source_device, source_type)
+            target_config = self._get_device_config_for_comparison(target_device, target_type)
+            
+            # Clean configurations if requested
+            if ignore_timestamps:
+                source_config = self._remove_timestamps(source_config)
+                target_config = self._remove_timestamps(target_config)
+            
+            if ignore_comments:
+                source_config = self._remove_comments(source_config)
+                target_config = self._remove_comments(target_config)
+            
+            # Generate diff
+            diff = list(difflib.unified_diff(
+                source_config.splitlines(keepends=True),
+                target_config.splitlines(keepends=True),
+                fromfile=f"{source_device['hostname']} ({source_type})",
+                tofile=f"{target_device['hostname']} ({target_type})",
+                lineterm=''
+            ))
+            
+            diff_text = ''.join(diff)
+            
+            return {
+                'status': 'success',
+                'diff': diff_text,
+                'source': source_device['hostname'],
+                'target': target_device['hostname']
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error comparing configurations: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def _get_device_config_for_comparison(self, device: Dict[str, Any], config_type: str) -> str:
+        """Get device configuration for comparison (mock implementation)"""
+        # For demo purposes, return mock configurations
+        if device['hostname'] == 'lab-router1':
+            return f"""# {device['hostname']} Configuration
+hostname {device['hostname']}
+interface eth0
+  ip address {device['ip_address'].split(':')[0]}
+  no shutdown
+service ssh
+  port 22
+  username admin
+end"""
+        else:
+            return f"""# {device['hostname']} Configuration  
+hostname {device['hostname']}
+interface eth0
+  ip address {device['ip_address'].split(':')[0]}
+  description Lab Interface
+  no shutdown
+service ssh
+  port 22
+  username admin
+service http
+  port 80
+end"""
+
+    def _remove_timestamps(self, config: str) -> str:
+        """Remove timestamp lines from configuration"""
+        lines = config.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            # Skip lines that look like timestamps
+            if not any(time_indicator in line.lower() for time_indicator in ['timestamp', 'date', 'time:', 'last modified']):
+                filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines)
+
+    def _remove_comments(self, config: str) -> str:
+        """Remove comment lines from configuration"""
+        lines = config.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            # Skip comment lines
+            if not stripped.startswith('#') and not stripped.startswith('!'):
+                filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines)

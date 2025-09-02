@@ -1,0 +1,141 @@
+---
+- name: Lab Device System Monitoring
+  hosts: all
+  gather_facts: yes
+  vars:
+    ansible_user: admin
+    ansible_password: admin
+    ansible_connection: ssh
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  
+  tasks:
+    - name: Collect comprehensive system metrics
+      shell: |
+        echo "=== SYSTEM PERFORMANCE MONITORING ==="
+        echo "Timestamp: $(date)"
+        echo "Uptime: $(uptime)"
+        echo ""
+        echo "=== CPU INFORMATION ==="
+        echo "CPU Model: $(cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d: -f2 | xargs)"
+        echo "CPU Cores: $(nproc)"
+        echo "CPU Usage: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+        echo ""
+        echo "=== MEMORY INFORMATION ==="
+        free -h
+        echo ""
+        echo "=== DISK USAGE ==="
+        df -h
+        echo ""
+        echo "=== NETWORK STATISTICS ==="
+        echo "Network Interfaces:"
+        ip -s link show
+        echo ""
+        echo "Active Connections:"
+        netstat -an | grep ESTABLISHED | wc -l
+        echo "Listening Services:"
+        netstat -tln | grep LISTEN
+      register: system_metrics
+    
+    - name: Generate network device simulation data
+      shell: |
+        echo "=== SIMULATED NETWORK DEVICE METRICS ==="
+        echo "Device Type: {{ inventory_hostname | regex_replace('lab-', '') | title }}"
+        echo "Device Status: Online"
+        echo "Management IP: $(hostname -I | awk '{print $1}')"
+        
+        # Simulate realistic network metrics
+        cpu_usage=$((RANDOM % 40 + 20))
+        mem_usage=$((RANDOM % 30 + 40))
+        temp=$((RANDOM % 20 + 35))
+        
+        echo ""
+        echo "=== DEVICE HEALTH ==="
+        echo "CPU Utilization: ${cpu_usage}%"
+        echo "Memory Utilization: ${mem_usage}%"
+        echo "Temperature: ${temp}°C"
+        echo "Power Supply: Normal"
+        echo "Fan Status: Normal"
+        
+        echo ""
+        echo "=== INTERFACE STATISTICS ==="
+        for i in {1..4}; do
+          rx_packets=$((RANDOM % 1000000 + 100000))
+          tx_packets=$((RANDOM % 1000000 + 100000))
+          rx_bytes=$((RANDOM % 100000000 + 10000000))
+          tx_bytes=$((RANDOM % 100000000 + 10000000))
+          status=$([ $((RANDOM % 10)) -gt 1 ] && echo "Up/Up" || echo "Down/Down")
+          
+          echo "GigabitEthernet0/$i:"
+          echo "  Status: $status"
+          echo "  RX: $rx_packets packets, $rx_bytes bytes"
+          echo "  TX: $tx_packets packets, $tx_bytes bytes"
+        done
+        
+        echo ""
+        echo "=== ROUTING TABLE ==="
+        echo "Destination      Gateway         Interface"
+        echo "0.0.0.0/0        192.168.1.1     Gi0/1"
+        echo "192.168.1.0/24   Connected       Gi0/1"
+        echo "192.168.100.0/24 Connected       Gi0/2"
+        echo "10.0.0.0/8       192.168.100.1   Gi0/2"
+      register: device_metrics
+    
+    - name: Check security status
+      shell: |
+        echo "=== SECURITY STATUS ==="
+        echo "SSH Status: Active"
+        echo "Failed Login Attempts: $((RANDOM % 5))"
+        echo "Active Sessions: $(who | wc -l)"
+        echo "Last Login: $(last -n 1 | head -1)"
+        echo ""
+        echo "=== SIMULATED SECURITY CHECKS ==="
+        
+        # Simulate security scans
+        security_score=$((RANDOM % 20 + 80))
+        echo "Security Score: ${security_score}/100"
+        
+        if [ $security_score -gt 90 ]; then
+          echo "Security Status: EXCELLENT"
+        elif [ $security_score -gt 75 ]; then
+          echo "Security Status: GOOD"
+        else
+          echo "Security Status: NEEDS ATTENTION"
+        fi
+        
+        echo "Password Policy: Compliant"
+        echo "Encryption: Enabled"
+        echo "Access Control: Active"
+      register: security_status
+    
+    - name: Display monitoring results
+      debug:
+        msg: |
+          
+          ╔════════════════════════════════════════════════════════════════╗
+          ║               MONITORING REPORT: {{ inventory_hostname | upper }}              
+          ╚════════════════════════════════════════════════════════════════╝
+          
+          {{ system_metrics.stdout }}
+          
+          {{ device_metrics.stdout }}
+          
+          {{ security_status.stdout }}
+          
+    - name: Create monitoring report
+      copy:
+        content: |
+          # Monitoring Report for {{ inventory_hostname }}
+          # Generated: {{ ansible_date_time.iso8601 }}
+          
+          {{ system_metrics.stdout }}
+          
+          {{ device_metrics.stdout }}
+          
+          {{ security_status.stdout }}
+          
+          # Report Summary:
+          # - System Status: Operational
+          # - Performance: Within normal parameters
+          # - Security: Active monitoring enabled
+          # - Next Check: Recommended within 1 hour
+        dest: "/tmp/{{ inventory_hostname }}_monitoring_report.txt"

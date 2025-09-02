@@ -1,0 +1,30 @@
+
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+
+runcmd:
+  # Install EVE-NG
+  - wget -O - https://www.eve-ng.net/repo/install-eve.sh | bash
+  
+  # Setup Docker
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker ubuntu
+  
+  # Clone portfolio repository
+  - cd /home/ubuntu
+  - git clone https://github.com/Christmas27/Network-Monitoring.git
+  - cd Network-Monitoring
+  
+  # Start services
+  - docker-compose -f docker-compose.portfolio.yml up -d
+  
+  # Setup SSL certificates
+  - certbot --nginx -d lab.yourportfolio.com --non-interactive --agree-tos -m your@email.com
+  - certbot --nginx -d dashboard.yourportfolio.com --non-interactive --agree-tos -m your@email.com

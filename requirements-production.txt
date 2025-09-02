@@ -1,0 +1,42 @@
+# Production Requirements - Optimized for Deployment
+# Core Framework
+streamlit==1.48.1
+flask==2.3.3
+
+# Database
+sqlite3  # Built-in with Python
+
+# Data Processing
+pandas==2.2.0
+numpy==1.26.4
+
+# Visualization
+plotly==5.24.1
+
+# Network Automation
+requests==2.32.3
+netmiko==4.4.0
+napalm==5.0.0
+paramiko==3.5.0
+
+# Ansible Automation
+ansible==10.7.0
+ansible-runner==2.4.0
+
+# Configuration Management
+pyyaml==6.0.2
+jinja2==3.1.4
+
+# Utilities
+python-dotenv==1.0.1
+typing-extensions==4.12.2
+pillow>=7.1.0,<12
+
+# System
+setuptools>=65.0
+wheel
+
+# Optional: If using specific device libraries
+# ncclient==0.6.15  # For NETCONF
+# pyeapi  # For Arista
+# ntc-templates  # For TextFSM parsing

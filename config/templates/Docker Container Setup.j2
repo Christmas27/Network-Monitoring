@@ -1,0 +1,142 @@
+#!/bin/bash
+# Docker Container Setup Template
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "🐳 Starting Docker container setup for {{ hostname }}"
+
+# Update system packages
+echo "📦 Updating system packages..."
+sudo apt update -y
+
+# Install Docker dependencies
+echo "🔧 Installing Docker dependencies..."
+sudo apt install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+
+# Add Docker's official GPG key
+echo "🔑 Adding Docker GPG key..."
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repository
+echo "📋 Adding Docker repository..."
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Update package index
+echo "🔄 Updating package index..."
+sudo apt update -y
+
+# Install Docker Engine
+echo "🐳 Installing Docker Engine..."
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Start and enable Docker service
+echo "⚙️ Starting Docker service..."
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Add current user to docker group
+echo "👤 Adding user to docker group..."
+sudo usermod -aG docker $USER
+
+# Create docker-compose file for {{ hostname }}
+echo "📄 Creating docker-compose configuration..."
+sudo mkdir -p /opt/{{ hostname }}-services
+sudo tee /opt/{{ hostname }}-services/docker-compose.yml > /dev/null <<EOF
+version: '3.8'
+
+services:
+  web:
+    image: nginx:alpine
+    container_name: {{ hostname }}-web
+    ports:
+      - "{{ web_port | default('8080') }}:80"
+    volumes:
+      - ./html:/usr/share/nginx/html
+    environment:
+      - NGINX_HOST={{ hostname }}
+      - NGINX_PORT=80
+    restart: unless-stopped
+
+  monitoring:
+    image: prom/node-exporter
+    container_name: {{ hostname }}-monitor
+    ports:
+      - "{{ monitoring_port | default('9100') }}:9100"
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+networks:
+  default:
+    name: {{ hostname }}-network
+EOF
+
+# Create custom HTML page
+echo "🌐 Creating custom web content..."
+sudo mkdir -p /opt/{{ hostname }}-services/html
+sudo tee /opt/{{ hostname }}-services/html/index.html > /dev/null <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - Container Services</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .container { background: rgba(255,255,255,0.1); padding: 30px; border-radius: 15px; backdrop-filter: blur(10px); }
+        h1 { color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .service-box { background: rgba(255,255,255,0.2); padding: 20px; margin: 15px 0; border-radius: 10px; }
+        .status { color: #4CAF50; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐳 {{ hostname }} Container Services</h1>
+        <div class="service-box">
+            <h3>📊 Service Information</h3>
+            <p><strong>Server:</strong> {{ hostname }}</p>
+            <p><strong>Environment:</strong> {{ environment }}</p>
+            <p><strong>Web Port:</strong> {{ web_port | default('8080') }}</p>
+            <p><strong>Monitoring Port:</strong> {{ monitoring_port | default('9100') }}</p>
+            <p><strong>Deployed:</strong> {{ timestamp }}</p>
+        </div>
+        <div class="service-box">
+            <h3>🌐 Available Services</h3>
+            <p><span class="status">✅ Web Service</span> - Port {{ web_port | default('8080') }}</p>
+            <p><span class="status">✅ Node Exporter</span> - Port {{ monitoring_port | default('9100') }}</p>
+        </div>
+        <div class="service-box">
+            <h3>🔗 Quick Links</h3>
+            <p><a href="/metrics" style="color: #FFD700;">📊 System Metrics</a></p>
+            <p><a href="http://{{ server_ip }}:{{ monitoring_port | default('9100') }}/metrics" style="color: #FFD700;">📈 Node Exporter Metrics</a></p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+
+# Start the services
+echo "🚀 Starting container services..."
+cd /opt/{{ hostname }}-services
+sudo docker-compose up -d
+
+# Show running containers
+echo "📋 Container status:"
+sudo docker ps
+
+# Show service information
+echo "✅ Docker setup complete for {{ hostname }}!"
+echo "🌐 Web service: http://{{ server_ip }}:{{ web_port | default('8080') }}"
+echo "📊 Monitoring: http://{{ server_ip }}:{{ monitoring_port | default('9100') }}/metrics"
+echo "🐳 Docker version: $(docker --version)"

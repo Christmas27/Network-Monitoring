@@ -1,0 +1,249 @@
+#!/bin/bash
+# File Share Server Setup Template (Samba)
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "📁 Starting file share server setup for {{ hostname }}"
+
+# Update system packages
+echo "📦 Updating system packages..."
+sudo apt update -y
+
+# Install Samba
+echo "📁 Installing Samba file server..."
+sudo apt install -y samba samba-common-bin
+
+# Create shared directories
+echo "📂 Creating shared directories..."
+SHARE_PATH="{{ share_path | default('/srv/samba/shared') }}"
+PUBLIC_PATH="{{ public_path | default('/srv/samba/public') }}"
+USERS_PATH="{{ users_path | default('/srv/samba/users') }}"
+
+sudo mkdir -p $SHARE_PATH
+sudo mkdir -p $PUBLIC_PATH
+sudo mkdir -p $USERS_PATH
+
+# Set permissions
+echo "🔐 Setting directory permissions..."
+sudo chmod 755 $SHARE_PATH
+sudo chmod 777 $PUBLIC_PATH
+sudo chmod 755 $USERS_PATH
+
+# Create Samba configuration
+echo "⚙️ Configuring Samba..."
+sudo tee /etc/samba/smb.conf > /dev/null <<EOF
+[global]
+    workgroup = {{ workgroup | default('WORKGROUP') }}
+    server string = {{ hostname }} File Server
+    netbios name = {{ hostname | upper }}
+    security = user
+    map to guest = bad user
+    dns proxy = no
+    log file = /var/log/samba/log.%m
+    max log size = 1000
+    syslog = 0
+    panic action = /usr/share/samba/panic-action %d
+
+    # Performance optimizations
+    socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=524288 SO_SNDBUF=524288
+    read raw = yes
+    write raw = yes
+    max xmit = 65536
+    dead time = 15
+    getwd cache = yes
+
+[{{ hostname }}-shared]
+    comment = {{ hostname }} Shared Files
+    path = $SHARE_PATH
+    browseable = yes
+    writable = yes
+    guest ok = no
+    valid users = {{ share_user | default('labuser') }}
+    create mask = 0664
+    directory mask = 0775
+
+[{{ hostname }}-public]
+    comment = {{ hostname }} Public Files
+    path = $PUBLIC_PATH
+    browseable = yes
+    writable = yes
+    guest ok = yes
+    read only = no
+    create mask = 0666
+    directory mask = 0777
+
+[{{ hostname }}-users]
+    comment = {{ hostname }} User Home Directories
+    path = $USERS_PATH
+    browseable = no
+    writable = yes
+    guest ok = no
+    valid users = %S
+    create mask = 0600
+    directory mask = 0700
+EOF
+
+# Create samba user
+echo "👤 Creating Samba user..."
+SAMBA_USER="{{ share_user | default('labuser') }}"
+SAMBA_PASS="{{ share_password | default('labpass123') }}"
+
+# Create system user if doesn't exist
+if ! id "$SAMBA_USER" &>/dev/null; then
+    sudo useradd -M -s /sbin/nologin $SAMBA_USER
+fi
+
+# Set Samba password
+echo -e "$SAMBA_PASS\n$SAMBA_PASS" | sudo smbpasswd -a $SAMBA_USER
+
+# Create welcome files
+echo "📄 Creating welcome files..."
+sudo tee $SHARE_PATH/README.txt > /dev/null <<EOF
+Welcome to {{ hostname }} File Share!
+
+This is the shared directory for {{ hostname }}.
+Environment: {{ environment }}
+Created: {{ timestamp }}
+
+You can upload and download files here.
+Access this share at: \\\\{{ server_ip }}\\{{ hostname }}-shared
+
+Credentials:
+Username: $SAMBA_USER
+Password: $SAMBA_PASS
+EOF
+
+sudo tee $PUBLIC_PATH/WELCOME.txt > /dev/null <<EOF
+{{ hostname }} Public File Share
+
+This is a public directory - no authentication required.
+Anyone can read and write files here.
+
+Server: {{ hostname }}
+IP: {{ server_ip }}
+Environment: {{ environment }}
+EOF
+
+# Set ownership
+sudo chown -R $SAMBA_USER:$SAMBA_USER $SHARE_PATH
+sudo chown -R nobody:nogroup $PUBLIC_PATH
+
+# Configure firewall
+if command -v ufw >/dev/null 2>&1; then
+    echo "🔥 Configuring firewall..."
+    sudo ufw allow samba
+    sudo ufw allow ssh
+fi
+
+# Enable and start Samba services
+echo "🚀 Starting Samba services..."
+sudo systemctl enable smbd nmbd
+sudo systemctl restart smbd nmbd
+
+# Test Samba configuration
+echo "🧪 Testing Samba configuration..."
+sudo testparm -s
+
+# Create connection script
+echo "📋 Creating connection script..."
+sudo tee /opt/connect_share.sh > /dev/null <<EOF
+#!/bin/bash
+# File share connection script for {{ hostname }}
+echo "📁 File Share Information for {{ hostname }}"
+echo "=================================="
+echo "Server IP: {{ server_ip }}"
+echo "Share Names:"
+echo "  - \\\\{{ server_ip }}\\{{ hostname }}-shared (authenticated)"
+echo "  - \\\\{{ server_ip }}\\{{ hostname }}-public (guest access)"
+echo ""
+echo "Credentials for shared folder:"
+echo "Username: $SAMBA_USER"
+echo "Password: $SAMBA_PASS"
+echo ""
+echo "Windows: Open File Explorer and type \\\\{{ server_ip }}"
+echo "Linux: sudo mount -t cifs //{{ server_ip }}/{{ hostname }}-shared /mnt/share"
+echo "macOS: Go > Connect to Server > smb://{{ server_ip }}"
+EOF
+
+sudo chmod +x /opt/connect_share.sh
+
+# Create web interface for file info
+echo "🌐 Creating web interface..."
+sudo tee /var/www/html/fileserver.html > /dev/null <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - File Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #1a1a2e; color: #eee; }
+        .container { background: #16213e; padding: 30px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .share-box { background: #0f3460; padding: 20px; margin: 15px 0; border-radius: 10px; border-left: 4px solid #e94560; }
+        .code { background: #1a1a2e; padding: 15px; border-radius: 8px; font-family: monospace; }
+        h1 { color: #e94560; }
+        .status { color: #00ff88; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📁 {{ hostname }} File Server</h1>
+        <div class="share-box">
+            <h3>📊 Server Information</h3>
+            <p><strong>Server Name:</strong> {{ hostname }}</p>
+            <p><strong>IP Address:</strong> {{ server_ip }}</p>
+            <p><strong>Environment:</strong> {{ environment }}</p>
+            <p><strong>Workgroup:</strong> {{ workgroup | default('WORKGROUP') }}</p>
+            <p><strong>Status:</strong> <span class="status">✅ Online</span></p>
+        </div>
+        
+        <div class="share-box">
+            <h3>📂 Available Shares</h3>
+            <p><strong>📁 {{ hostname }}-shared</strong> - Authenticated access required</p>
+            <p><strong>📁 {{ hostname }}-public</strong> - Guest access allowed</p>
+            <p><strong>📁 {{ hostname }}-users</strong> - User home directories</p>
+        </div>
+        
+        <div class="share-box">
+            <h3>🔑 Access Credentials</h3>
+            <div class="code">
+                Username: $SAMBA_USER<br>
+                Password: $SAMBA_PASS
+            </div>
+        </div>
+        
+        <div class="share-box">
+            <h3>🔗 Connection Instructions</h3>
+            <p><strong>Windows:</strong></p>
+            <div class="code">\\\\{{ server_ip }}\\{{ hostname }}-shared</div>
+            
+            <p><strong>Linux:</strong></p>
+            <div class="code">smbclient //{{ server_ip }}/{{ hostname }}-shared -U $SAMBA_USER</div>
+            
+            <p><strong>macOS:</strong></p>
+            <div class="code">smb://{{ server_ip }}/{{ hostname }}-shared</div>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+
+# Show service status
+echo "📋 Samba service status:"
+sudo systemctl status smbd --no-pager -l
+
+# Show listening ports
+echo "🔌 Listening ports:"
+sudo ss -tuln | grep -E '(445|139)'
+
+# Show shares
+echo "📁 Available shares:"
+sudo smbclient -L localhost -N
+
+echo "✅ File share server setup complete for {{ hostname }}!"
+echo "📁 Shares available:"
+echo "  - \\\\{{ server_ip }}\\{{ hostname }}-shared"
+echo "  - \\\\{{ server_ip }}\\{{ hostname }}-public"
+echo "👤 Username: $SAMBA_USER"
+echo "🔑 Password: $SAMBA_PASS"
+echo "📋 Connection info: /opt/connect_share.sh"
+echo "🌐 Web interface: http://{{ server_ip }}/fileserver.html"

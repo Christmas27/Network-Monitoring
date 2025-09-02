@@ -1,0 +1,36 @@
+networks:
+  link1:
+    driver: bridge
+  link2:
+    driver: bridge
+  mgmt:
+    driver: bridge
+services:
+  router1:
+    cap_add:
+    - NET_ADMIN
+    container_name: lab-router1
+    image: networkop/cx:latest
+    networks:
+    - mgmt
+    - link1
+    volumes:
+    - ./configs:/configs
+  router2:
+    cap_add:
+    - NET_ADMIN
+    container_name: lab-router2
+    image: networkop/cx:latest
+    networks:
+    - mgmt
+    - link1
+    - link2
+  switch1:
+    cap_add:
+    - NET_ADMIN
+    container_name: lab-switch1
+    image: networkop/cx:latest
+    networks:
+    - mgmt
+    - link2
+version: '3.8'

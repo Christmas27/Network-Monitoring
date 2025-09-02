@@ -1,3 +1,65 @@
+# ========================================
+# 🚀 PROJECT STARTUP GUIDE 
+# ========================================
+# Complete guide to restart the Network Monitoring Dashboard after computer shutdown
+
+## 🔄 FULL PROJECT STARTUP (After Computer Restart)
+
+### Step 1: Navigate to Project Directory
+cd "D:\DevOps\DevOps Project - Local"
+
+### Step 2: Activate Python Virtual Environment
+.\network_dashboard_env\Scripts\activate
+
+### Step 3: Start Lab Environment (Docker Containers)
+cd "portfolio\local-testing"
+docker-compose -f docker-compose-simple.yml up -d
+
+### Step 4: Verify Lab Devices are Running
+docker ps --filter name=lab-
+# Should show: lab-router1 (port 2221), lab-switch1 (port 2222), lab-firewall1 (port 2223)
+
+### Step 5: Return to Project Root and Start Streamlit Dashboard
+cd "D:\DevOps\DevOps Project - Local"
+streamlit run streamlit_app.py
+
+### Step 6: Access the Dashboard
+# Open browser and go to: http://localhost:8501
+# Dashboard should be fully functional with all features:
+# - 🏠 Dashboard (metrics & monitoring)
+# - 📱 Devices (lab device management)
+# - 🤖 Automation (SSH & Ansible automation)
+# - 🛡️ Security (vulnerability scanning)
+# - ⚙️ Configuration (template deployment & backup)
+# - 🔍 Monitoring (real-time performance)
+# - 🌐 Topology (interactive network map)
+# - 🧪 Virtual Lab (lab environment control)
+
+## 🏃‍♂️ QUICK START (One-Command Startup)
+# Create a batch file with this content and save as "start_project.bat":
+@echo off
+cd /d "D:\DevOps\DevOps Project - Local"
+call .\network_dashboard_env\Scripts\activate
+cd portfolio\local-testing
+docker-compose -f docker-compose-simple.yml up -d
+cd "D:\DevOps\DevOps Project - Local"
+echo ✅ Lab environment started!
+echo 🚀 Starting Streamlit dashboard...
+streamlit run streamlit_app.py
+
+## ✅ VERIFICATION CHECKLIST
+# After startup, verify these components are working:
+# □ Docker containers running (3 lab devices)
+# □ Streamlit dashboard accessible at localhost:8501
+# □ All 8 dashboard tabs loading without errors
+# □ Topology showing 3 active devices (green status)
+# □ Configuration management working (templates & backup)
+# □ Automation features connecting to lab devices
+
+# ========================================
+# 📦 DOCKER MANAGEMENT COMMANDS
+# ========================================
+
 # Navigate to your project directory
 cd "d:\DevOps Project"
 
@@ -37,6 +99,73 @@ docker stop my-dashboard && docker rm my-dashboard
 # Force stop (if container won't stop)
 docker kill my-dashboard
 
+# ========================================
+# 🔧 LAB ENVIRONMENT MANAGEMENT
+# ========================================
+
+## Lab Device Management (Your 3-Device Lab)
+# Start lab devices
+cd "D:\DevOps\DevOps Project - Local\portfolio\local-testing"
+docker-compose -f docker-compose-simple.yml up -d
+
+# Check lab device status
+docker ps --filter name=lab-
+
+# Stop lab devices
+docker-compose -f docker-compose-simple.yml down
+
+# Restart specific lab device
+docker restart lab-router1
+docker restart lab-switch1
+docker restart lab-firewall1
+
+# View lab device logs
+docker logs lab-router1
+docker logs lab-switch1
+docker logs lab-firewall1
+
+## Lab Device Connection Details
+# lab-router1:   SSH to 127.0.0.1:2221 (admin/admin)
+# lab-switch1:   SSH to 127.0.0.1:2222 (admin/admin)
+# lab-firewall1: SSH to 127.0.0.1:2223 (admin/admin)
+
+# ========================================
+# 🛠️ TROUBLESHOOTING GUIDE
+# ========================================
+
+## Problem: Lab devices showing as offline in topology
+# Solution: Restart lab environment
+docker-compose -f docker-compose-simple.yml down
+docker-compose -f docker-compose-simple.yml up -d
+
+## Problem: Streamlit shows "Connection error" 
+# Solution: Check if virtual environment is activated
+.\network_dashboard_env\Scripts\activate
+
+## Problem: "Module not found" errors
+# Solution: Reinstall packages
+.\network_dashboard_env\Scripts\pip.exe install -r requirements.txt
+
+## Problem: Database errors in configuration management
+# Solution: Clear Python cache and restart
+Remove-Item -Recurse -Force "modules\__pycache__\"
+streamlit run streamlit_app.py
+
+## Problem: Docker containers won't start
+# Solution: Clean Docker system
+docker system prune -f
+docker-compose -f docker-compose-simple.yml up -d --force-recreate
+
+## Problem: Ports already in use (2221, 2222, 2223)
+# Solution: Stop conflicting processes
+netstat -ano | findstr :2221
+# Then kill the process using Task Manager or:
+taskkill /PID <process_id> /F
+
+# ========================================
+# 🗂️ DOCKER CLEANUP COMMANDS
+# ========================================
+
 # List running containers
 docker ps
 
@@ -69,3 +198,32 @@ docker rmi network-dashboard
 
 # Remove specific volume
 docker volume rm <volume-name>
+
+# ========================================
+# 🎯 PROJECT FEATURES OVERVIEW
+# ========================================
+
+## Dashboard Features Available After Startup:
+# 🏠 Dashboard - System overview, metrics, real-time monitoring
+# 📱 Devices - Lab device management and status
+# 🤖 Automation - SSH automation, Ansible playbooks, WSL integration
+# 🛡️ Security - Vulnerability scanning, compliance checking
+# ⚙️ Configuration - Template deployment, device backup, configuration comparison
+# 🔍 Monitoring - Performance monitoring, availability tracking
+# 🌐 Topology - Interactive network map with real-time device status
+# 🧪 Virtual Lab - Lab environment management and control
+
+## Key Project Components:
+# - Streamlit dashboard (localhost:8501)
+# - 3 SSH lab devices (Docker containers)
+# - SQLite databases (devices, monitoring, security, configurations)
+# - WSL Ansible integration for automation
+# - Real SSH automation with lab devices
+# - Interactive topology visualization
+# - Configuration template system with 8+ templates
+
+## ⚡ PERFORMANCE TIPS:
+# - Keep lab devices running for best performance
+# - Use auto-refresh features sparingly to save resources
+# - Monitor Docker resource usage if system becomes slow
+# - Clear Python cache if experiencing import issues

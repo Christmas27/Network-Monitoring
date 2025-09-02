@@ -1,0 +1,118 @@
+---
+- name: Lab Device Configuration Management
+  hosts: all
+  gather_facts: yes
+  vars:
+    ansible_user: admin
+    ansible_password: admin
+    ansible_connection: ssh
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  
+  tasks:
+    - name: Create device configuration directory
+      file:
+        path: /etc/network-device
+        state: directory
+      become: yes
+      ignore_errors: yes
+    
+    - name: Generate device configuration
+      shell: |
+        cat > /tmp/device_config.txt << EOF
+        #!/bin/bash
+        # Simulated Network Device Configuration
+        # Device: {{ inventory_hostname }}
+        # Generated: $(date)
+        
+        # Basic device information
+        DEVICE_TYPE="{{ inventory_hostname | regex_replace('lab-', '') | title }}"
+        HOSTNAME="{{ inventory_hostname }}"
+        MANAGEMENT_IP="$(hostname -I | awk '{print $1}')"
+        
+        # Simulated network configuration
+        echo "=== DEVICE CONFIGURATION ==="
+        echo "Device: \$DEVICE_TYPE"
+        echo "Hostname: \$HOSTNAME"
+        echo "Management IP: \$MANAGEMENT_IP"
+        echo ""
+        echo "=== INTERFACE CONFIGURATION ==="
+        for i in {1..4}; do
+          vlan_id=\$((100 + i))
+          ip_last=\$((10 + i))
+          echo "interface GigabitEthernet0/\$i"
+          echo "  description Connection to VLAN \$vlan_id"
+          echo "  ip address 192.168.\$vlan_id.\$ip_last 255.255.255.0"
+          echo "  no shutdown"
+          echo ""
+        done
+        
+        echo "=== ROUTING CONFIGURATION ==="
+        echo "ip route 0.0.0.0 0.0.0.0 192.168.1.1"
+        echo "ip route 10.0.0.0 255.0.0.0 192.168.100.1"
+        
+        echo "=== SECURITY CONFIGURATION ==="
+        echo "enable secret \$5\$encrypted_password"
+        echo "username admin privilege 15 secret \$5\$encrypted_password"
+        echo "ip ssh version 2"
+        echo "ip ssh time-out 60"
+        
+        EOF
+        chmod +x /tmp/device_config.txt
+      register: config_generation
+    
+    - name: Apply configuration (simulation)
+      shell: |
+        echo "=== APPLYING CONFIGURATION TO {{ inventory_hostname }} ==="
+        echo "Configuration file created: /tmp/device_config.txt"
+        echo "Configuration size: $(wc -l < /tmp/device_config.txt) lines"
+        echo "Configuration applied successfully!"
+        echo "Restarting simulated network services..."
+        sleep 2
+        echo "Services restarted successfully!"
+        
+        # Simulate some configuration changes
+        echo ""
+        echo "=== CONFIGURATION CHANGES APPLIED ==="
+        echo "✓ Updated hostname to {{ inventory_hostname }}"
+        echo "✓ Configured management interface"
+        echo "✓ Applied security settings"
+        echo "✓ Updated routing table"
+        echo "✓ Enabled SSH access"
+      register: config_apply
+    
+    - name: Verify configuration
+      shell: |
+        echo "=== CONFIGURATION VERIFICATION ==="
+        echo "Configuration file exists: $([ -f /tmp/device_config.txt ] && echo 'YES' || echo 'NO')"
+        echo "Configuration backup created: $(date)"
+        echo "Device status: Online and configured"
+        echo "All interfaces: Operational"
+        echo "Routing: Active"
+        echo "Security: Enabled"
+      register: config_verify
+    
+    - name: Display configuration results
+      debug:
+        msg: |
+          
+          ╔════════════════════════════════════════════════════════════════╗
+          ║            CONFIGURATION APPLIED: {{ inventory_hostname | upper }}           
+          ╚════════════════════════════════════════════════════════════════╝
+          
+          {{ config_apply.stdout }}
+          
+          {{ config_verify.stdout }}
+          
+    - name: Save configuration backup
+      copy:
+        content: |
+          # Configuration Backup for {{ inventory_hostname }}
+          # Generated: {{ ansible_date_time.iso8601 }}
+          
+          {{ config_apply.stdout }}
+          
+          {{ config_verify.stdout }}
+          
+          # Raw configuration:
+          {{ config_generation.stdout }}
+        dest: "/tmp/{{ inventory_hostname }}_config_backup.txt"

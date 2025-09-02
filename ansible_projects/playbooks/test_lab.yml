@@ -1,0 +1,53 @@
+---
+- name: Test Lab Connectivity and Configuration
+  hosts: lab_devices
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Check system information
+      command: uname -a
+      register: system_info
+      
+    - name: Display system information
+      debug:
+        msg: "Device {{ inventory_hostname }}: {{ system_info.stdout }}"
+        
+    - name: Install basic network tools
+      package:
+        name: 
+          - net-tools
+          - curl
+          - wget
+        state: present
+      ignore_errors: yes
+      
+    - name: Create device configuration file
+      copy:
+        content: |
+          # Device Configuration
+          hostname {{ inventory_hostname }}
+          management_ip {{ ansible_host }}
+          device_type {{ device_type }}
+          configured_by ansible
+          last_update {{ ansible_date_time.iso8601 }}
+        dest: /tmp/device_config.txt
+        
+    - name: Generate device status report
+      shell: |
+        echo "=== Device Status Report ===" > /tmp/status_report.txt
+        echo "Hostname: $(hostname)" >> /tmp/status_report.txt
+        echo "IP Address: {{ ansible_host }}" >> /tmp/status_report.txt
+        echo "Kernel: $(uname -r)" >> /tmp/status_report.txt
+        echo "Uptime: $(uptime)" >> /tmp/status_report.txt
+        echo "Memory: $(free -h | head -2)" >> /tmp/status_report.txt
+        echo "Disk Usage: $(df -h / | tail -1)" >> /tmp/status_report.txt
+        
+    - name: Read status report
+      slurp:
+        src: /tmp/status_report.txt
+      register: status_report
+      
+    - name: Display status report
+      debug:
+        msg: "{{ status_report.content | b64decode }}"

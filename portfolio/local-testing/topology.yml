@@ -1,0 +1,47 @@
+mgmt:
+  ipv4_subnet: 172.20.20.0/24
+  network: mgmt-net
+name: network-testing-lab
+topology:
+  links:
+  - endpoints:
+    - router1:eth1
+    - switch1:eth1
+  - endpoints:
+    - switch1:eth2
+    - router2:eth1
+  - endpoints:
+    - switch1:eth3
+    - host1:eth0
+  nodes:
+    host1:
+      image: alpine:latest
+      kind: linux
+      mgmt_ipv4: 172.20.20.100
+    router1:
+      env:
+        DEVICE_TYPE: cisco_ios
+        HOSTNAME: LAB-R1
+      image: networkop/cx:latest
+      kind: linux
+      mgmt_ipv4: 172.20.20.10
+      ports:
+      - '2221:22'
+    router2:
+      env:
+        DEVICE_TYPE: cisco_ios
+        HOSTNAME: LAB-R2
+      image: networkop/cx:latest
+      kind: linux
+      mgmt_ipv4: 172.20.20.30
+      ports:
+      - '2223:22'
+    switch1:
+      env:
+        DEVICE_TYPE: cisco_ios
+        HOSTNAME: LAB-SW1
+      image: networkop/cx:latest
+      kind: linux
+      mgmt_ipv4: 172.20.20.20
+      ports:
+      - '2222:22'

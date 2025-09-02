@@ -1,0 +1,18 @@
+cloud_deployment:
+  instance_type: s-2vcpu-4gb
+  os: ubuntu-22-04-x64
+  provider: digitalocean
+  region: nyc1
+services:
+  api:
+    domain: api.yourportfolio.com
+    port: 5000
+    ssl: true
+  dashboard:
+    domain: dashboard.yourportfolio.com
+    port: 8503
+    ssl: true
+  eve_ng:
+    domain: lab.yourportfolio.com
+    port: 80
+    ssl: true

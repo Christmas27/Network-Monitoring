@@ -1,0 +1,91 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "containerGroupName": {
+            "type": "string",
+            "defaultValue": "network-dashboard",
+            "metadata": {
+                "description": "Name for the container group"
+            }
+        },
+        "imageTag": {
+            "type": "string",
+            "defaultValue": "latest",
+            "metadata": {
+                "description": "Tag for the container image"
+            }
+        },
+        "secretKey": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Flask secret key"
+            }
+        }
+    },
+    "variables": {
+        "containerName": "network-dashboard",
+        "imageName": "[concat('ghcr.io/christmas27/network-monitoring:', parameters('imageTag'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2021-09-01",
+            "name": "[parameters('containerGroupName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "containers": [
+                    {
+                        "name": "[variables('containerName')]",
+                        "properties": {
+                            "image": "[variables('imageName')]",
+                            "ports": [
+                                {
+                                    "port": 5000,
+                                    "protocol": "TCP"
+                                }
+                            ],
+                            "environmentVariables": [
+                                {
+                                    "name": "FLASK_ENV",
+                                    "value": "production"
+                                },
+                                {
+                                    "name": "PORT",
+                                    "value": "5000"
+                                },
+                                {
+                                    "name": "SECRET_KEY",
+                                    "secureValue": "[parameters('secretKey')]"
+                                }
+                            ],
+                            "resources": {
+                                "requests": {
+                                    "cpu": 0.5,
+                                    "memoryInGb": 1
+                                }
+                            }
+                        }
+                    }
+                ],
+                "osType": "Linux",
+                "ipAddress": {
+                    "type": "Public",
+                    "ports": [
+                        {
+                            "port": 5000,
+                            "protocol": "TCP"
+                        }
+                    ]
+                },
+                "restartPolicy": "Always"
+            }
+        }
+    ],
+    "outputs": {
+        "containerIPv4Address": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups/', parameters('containerGroupName'))).ipAddress.ip]"
+        }
+    }
+}

@@ -1,0 +1,27 @@
+
+! Basic Router Configuration
+hostname {{ hostname }}
+!
+enable secret {{ enable_secret }}
+!
+interface {{ wan_interface }}
+ ip address {{ wan_ip }} {{ wan_mask }}
+ no shutdown
+!
+interface {{ lan_interface }}
+ ip address {{ lan_ip }} {{ lan_mask }}
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 {{ default_gateway }}
+!
+line vty 0 4
+ transport input ssh
+ login local
+!
+ip ssh version 2
+!
+banner motd ^
+{{ banner_message }}
+^
+!
+end

@@ -1,0 +1,115 @@
+#!/bin/bash
+# Web Server Configuration Template
+# Generated for: {{ hostname }}
+# Environment: {{ environment }}
+# Deploy Date: {{ timestamp }}
+
+echo "🚀 Starting web server configuration for {{ hostname }}"
+
+# Update system packages
+echo "📦 Updating system packages..."
+sudo apt update -y
+sudo apt upgrade -y
+
+# Install Apache web server
+echo "🌐 Installing Apache web server..."
+sudo apt install -y apache2
+
+# Enable and start Apache
+echo "⚙️ Configuring Apache service..."
+sudo systemctl enable apache2
+sudo systemctl start apache2
+
+# Configure firewall if UFW is available
+if command -v ufw >/dev/null 2>&1; then
+    echo "🔥 Configuring firewall..."
+    sudo ufw allow 'Apache Full'
+    sudo ufw allow ssh
+fi
+
+# Create custom index page
+echo "📄 Creating custom web page..."
+sudo tee /var/www/html/index.html > /dev/null <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - Lab Web Server</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .info { background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .status { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 {{ hostname }} Web Server</h1>
+        <div class="info">
+            <p><strong>Server IP:</strong> {{ server_ip }}</p>
+            <p><strong>Port:</strong> {{ server_port }}</p>
+            <p><strong>Environment:</strong> {{ environment }}</p>
+            <p><strong>Configured:</strong> {{ timestamp }}</p>
+        </div>
+        <p class="status">✅ Web server is running successfully!</p>
+        <hr>
+        <p><em>This server was configured automatically using network automation.</em></p>
+    </div>
+</body>
+</html>
+EOF
+
+# Create server info page
+echo "📊 Creating server info page..."
+sudo tee /var/www/html/info.html > /dev/null <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ hostname }} - Server Information</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 {{ hostname }} System Information</h1>
+        <h3>System Details:</h3>
+        <pre id="sysinfo">Loading system information...</pre>
+        <script>
+            // Auto-refresh system info
+            function updateSysInfo() {
+                document.getElementById('sysinfo').innerHTML = 'Hostname: {{ hostname }}\\nServer IP: {{ server_ip }}\\nEnvironment: {{ environment }}\\nConfigured: {{ timestamp }}\\n\\nStatus: Server is operational';
+            }
+            updateSysInfo();
+        </script>
+    </div>
+</body>
+</html>
+EOF
+
+# Set proper permissions
+echo "🔐 Setting file permissions..."
+sudo chown -R www-data:www-data /var/www/html/
+sudo chmod -R 755 /var/www/html/
+
+# Test Apache configuration
+echo "🧪 Testing Apache configuration..."
+sudo apache2ctl configtest
+
+# Restart Apache to apply changes
+echo "🔄 Restarting Apache service..."
+sudo systemctl restart apache2
+
+# Show status
+echo "📋 Service status:"
+sudo systemctl status apache2 --no-pager -l
+
+# Show listening ports
+echo "🔌 Listening ports:"
+sudo ss -tuln | grep :80
+
+echo "✅ Web server configuration complete!"
+echo "🌐 Access your server at: http://{{ server_ip }}:{{ server_port }}"
+echo "📊 Server info page: http://{{ server_ip }}:{{ server_port }}/info.html"

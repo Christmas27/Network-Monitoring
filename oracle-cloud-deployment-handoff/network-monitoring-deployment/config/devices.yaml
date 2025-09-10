@@ -1,0 +1,105 @@
+# Sample Devices Configuration
+# This file shows examples of how to add devices to your network automation dashboard
+
+devices:
+  - hostname: "core-router-01"
+    ip_address: "192.168.1.1"
+    device_type: "cisco_ios"
+    vendor: "cisco"
+    username: "admin"
+    password: "your_password_here"
+    enable_password: "your_enable_password_here"
+    port: 22
+    description: "Core router for main network"
+    tags:
+      - "core"
+      - "production"
+      - "critical"
+
+  - hostname: "access-switch-01"
+    ip_address: "192.168.1.10"
+    device_type: "cisco_ios"
+    vendor: "cisco"
+    username: "admin"
+    password: "your_password_here"
+    enable_password: "your_enable_password_here"
+    port: 22
+    description: "Access switch for floor 1"
+    tags:
+      - "access"
+      - "production"
+
+  - hostname: "firewall-01"
+    ip_address: "192.168.1.2"
+    device_type: "cisco_asa"
+    vendor: "cisco"
+    username: "admin"
+    password: "your_password_here"
+    enable_password: "your_enable_password_here"
+    port: 22
+    description: "Edge firewall"
+    tags:
+      - "security"
+      - "edge"
+      - "critical"
+
+  - hostname: "lab-router-01"
+    ip_address: "192.168.100.1"
+    device_type: "cisco_ios"
+    vendor: "cisco"
+    username: "admin"
+    password: "cisco"
+    enable_password: "cisco"
+    port: 22
+    description: "Lab environment router"
+    tags:
+      - "lab"
+      - "testing"
+
+# Network Segments
+networks:
+  - name: "Production Network"
+    subnet: "192.168.1.0/24"
+    vlan_id: 100
+    description: "Main production network"
+    
+  - name: "Lab Network"
+    subnet: "192.168.100.0/24"
+    vlan_id: 200
+    description: "Testing and development network"
+
+# SNMP Communities
+snmp:
+  communities:
+    - community: "public"
+      access: "readonly"
+      description: "Default read-only community"
+    - community: "private"
+      access: "readwrite"
+      description: "Management community"
+
+# Monitoring Thresholds
+monitoring:
+  cpu_threshold: 80
+  memory_threshold: 85
+  disk_threshold: 90
+  interface_error_threshold: 100
+  response_time_threshold: 5000  # milliseconds
+
+# Security Policies
+security:
+  password_policy:
+    min_length: 8
+    require_special_chars: true
+    require_numbers: true
+    require_uppercase: true
+    
+  ssh_policy:
+    version: 2
+    timeout: 300
+    max_sessions: 5
+    
+  access_control:
+    enable_secret_required: true
+    console_timeout: 600
+    vty_timeout: 600

@@ -21,7 +21,7 @@ A comprehensive web-based dashboard for network automation, monitoring, and mana
 
 ## 🌟 **Try the Live Demo**
 
-**🔗 Access the application:** https://dashboard.heroku.com/apps/network-monitoring-dashboard
+**🔗 Access the application:** [https://dashboard.heroku.com/apps/network-monitoring-dashboard](https://network-monitoring-dashboard-fc34d3d9515c.herokuapp.com/)
 
 ### What you can explore:
 - 📊 **Dashboard** - Network overview with real-time metrics and device status
